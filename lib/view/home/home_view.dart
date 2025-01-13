@@ -829,47 +829,53 @@ class _HomeViewState extends State<HomeView> {
                                         fontSize: 14),
                                   ),
                                 ),
+                            SizedBox(
+                          height: media.width * 0.01,
+                        ),
                                 const Spacer(),
-                                Container(
-                                  alignment: Alignment.center,
-                                  child: SizedBox(
-                                    width: media.width * 0.2,
-                                    height: media.width * 0.2,
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Container(
-                                          width: media.width * 0.15,
-                                          height: media.width * 0.15,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                                colors: TColor.primaryG),
-                                            borderRadius: BorderRadius.circular(
-                                                media.width * 0.075),
-                                          ),
-                                          child: FittedBox(
-                                            child: Text(
-                                              "230kCal\nleft",
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                  color: TColor.white,
-                                                  fontSize: 11),
+                                Align(
+                                  child: Container(
+                                    alignment: Alignment.center,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          Container(
+                                            width: media.width * 0.25,
+                                            height: media.width * 0.25,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                              gradient: RadialGradient(
+                                                  colors: [
+                                                  TColor.primaryColor2,
+                                                    TColor.primaryColor1,
+                                                      ],
+                                                    stops: [0.0, 1.0],
+                                                  ),
+                                  
+                                            ),
+                                            child: FittedBox(
+                                              child: Text(
+                                                "230kCal\nleft",
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                    color: TColor.white,
+                                                    fontSize: 11),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        SimpleCircularProgressBar(
-                                          progressStrokeWidth: 10,
-                                          backStrokeWidth: 10,
-                                          progressColors: TColor.primaryG,
-                                          backColor: Colors.grey.shade100,
-                                          valueNotifier: ValueNotifier(50),
-                                          startAngle: -180,
-                                        ),
-                                      ],
+                                          SimpleCircularProgressBar(
+                                            progressStrokeWidth: 10,
+                                            backStrokeWidth: 5,
+                                            progressColors: TColor.secondaryG,
+                                            backColor: Colors.grey.shade100,
+                                            valueNotifier: ValueNotifier(50),
+                                            startAngle: -180,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                )
+                                ),
                               ]),
                         ),
                       ],

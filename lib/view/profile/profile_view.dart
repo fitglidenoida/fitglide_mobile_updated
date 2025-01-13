@@ -1,7 +1,7 @@
+import 'package:fitglide_mobile_application/services/user_service.dart';
 import 'package:fitglide_mobile_application/view/login/login_view.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Add this dependency
-
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; 
 import '../../common/colo_extension.dart';
 import '../../common_widget/round_button.dart';
 import '../../common_widget/setting_row.dart';
@@ -19,42 +19,61 @@ class _ProfileViewState extends State<ProfileView> {
   bool positive = false;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
+  UserData? userData;
+  String bmiCategory = "";
+  bool isLoading = true;
+
   List accountArr = [
     {"image": "assets/img/p_personal.png", "name": "Personal Data", "tag": "1"},
     {"image": "assets/img/p_achi.png", "name": "Achievement", "tag": "2"},
-    {
-      "image": "assets/img/p_activity.png",
-      "name": "Activity History",
-      "tag": "3"
-    },
-    {
-      "image": "assets/img/p_workout.png",
-      "name": "Workout Progress",
-      "tag": "4"
-    }
+    {"image": "assets/img/p_activity.png", "name": "Activity History", "tag": "3"},
+    {"image": "assets/img/p_workout.png", "name": "Workout Progress", "tag": "4"}
   ];
 
   List otherArr = [
     {"image": "assets/img/p_contact.png", "name": "Contact Us", "tag": "5"},
     {"image": "assets/img/p_privacy.png", "name": "Privacy Policy", "tag": "6"},
-    {"image": "assets/img/p_setting.png", "name": "Setting", "tag": "7"},
+    {"image": "assets/img/p_setting.png", "name": "Fitness Bridge", "tag": "7"},
   ];
 
-Future<void> _handleLogout() async {
+  Future<void> _handleLogout() async {
+    try {
+      await _secureStorage.deleteAll();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginView()),
+        (route) => false,
+      );
+    } catch (error) {
+      debugPrint("Error during logout: $error");
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+Future<void> _fetchUserData() async {
+  setState(() {
+    isLoading = true;
+  });
   try {
-    // Clear all secure storage
-    await _secureStorage.deleteAll();
-
-    // Print for debug purposes
-    print("User logged out and storage cleared.");
-
-    // Navigate to the LoginView
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => LoginView()),
-      (route) => false, // Remove all previous routes
-    );
-  } catch (error) {
-    print("Error during logout: $error");
+    userData = await UserService.fetchUserData();
+    if (userData != null) {
+      bmiCategory = userData!.interpretBMI(userData!.bmi ?? 0);
+      // Debug print to check data
+      debugPrint('UserData: ${userData!.toString()}'); // This will print all fields of UserData
+    } else {
+      bmiCategory = "Error: User data not found.";
+    }
+  } catch (e) {
+    debugPrint('Error fetching user data: $e');
+    bmiCategory = "Error fetching user data.";
+  } finally {
+    setState(() {
+      isLoading = false;
+    });
   }
 }
 
@@ -107,88 +126,91 @@ Future<void> _handleLogout() async {
         ],
       ),
       backgroundColor: TColor.white,
-      body: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: Image.asset(
-                      "assets/img/u2.png",
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(
-                    width: 15,
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          "Stefani Wong",
-                          style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: Image.asset(
+                            "assets/img/u2.png",
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
                           ),
                         ),
-                        Text(
-                          "Lose a Fat Program",
-                          style: TextStyle(
-                            color: TColor.gray,
+                        const SizedBox(
+                          width: 15,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                userData?.firstName ?? "Guest",
+                                style: TextStyle(
+                                  color: TColor.black,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                "Loose fat Program",
+                                style: TextStyle(
+                                  color: TColor.gray,
+                                  fontSize: 12,
+                                ),
+                              )
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 70,
+                          height: 25,
+                          child: RoundButton(
+                            title: "Edit",
+                            type: RoundButtonType.bgGradient,
                             fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            onPressed: () {
+                              // Existing edit functionality
+                            },
                           ),
                         )
                       ],
                     ),
-                  ),
-                  SizedBox(
-                    width: 70,
-                    height: 25,
-                    child: RoundButton(
-                      title: "Edit",
-                      type: RoundButtonType.bgGradient,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      onPressed: () {
-                        // Existing edit functionality
-                      },
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TitleSubtitleCell(
+                             title: "${userData?.heightCm?.toInt() ?? "N/A"}cm",
+                            subtitle: "Height",
+                            
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: TitleSubtitleCell(
+                            title: "${userData?.weightKg?.toInt() ?? "N/A"}kg",
+                            subtitle: "Weight",
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: TitleSubtitleCell(
+                        title: "${userData?.age ?? "N/A"}y",
+                            subtitle: "Age",
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                ],
-              ),
-              const SizedBox(height: 15),
-              const Row(
-                children: [
-                  Expanded(
-                    child: TitleSubtitleCell(
-                      title: "180cm",
-                      subtitle: "Height",
-                    ),
-                  ),
-                  SizedBox(width: 15),
-                  Expanded(
-                    child: TitleSubtitleCell(
-                      title: "65kg",
-                      subtitle: "Weight",
-                    ),
-                  ),
-                  SizedBox(width: 15),
-                  Expanded(
-                    child: TitleSubtitleCell(
-                      title: "22yo",
-                      subtitle: "Age",
-                    ),
-                  ),
-                ],
-              ),
               const SizedBox(height: 25),
               // Account Section
               Container(

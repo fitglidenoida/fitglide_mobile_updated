@@ -6,6 +6,8 @@ import 'package:fitglide_mobile_application/services/storage_service.dart';
 import 'package:fitglide_mobile_application/view/login/signup_view.dart';
 import 'package:fitglide_mobile_application/view/main_tab/main_tab_view.dart';
 import 'package:flutter/material.dart';
+import 'package:fitglide_mobile_application/services/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -18,37 +20,85 @@ class _LoginViewState extends State<LoginView> {
   bool isCheck = false;
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+    bool _isLoggedIn = false;
+  Map<String, dynamic>? _userData;
+  String? _errorMessage;
+  
+  Future<void> handleLogin() async {
+    try {
+      final authService = AuthService();
+      final response = await authService.login(
+        emailController.text.trim(),
+        passwordController.text.trim(),
+      );
 
-Future<void> handleLogin() async {
-  try {
-    final authService = AuthService();
-    final response = await authService.login(
-      emailController.text.trim(),
-      passwordController.text.trim(),
-    );
+      if (response.containsKey('jwt')) {
+        final token = response['jwt'];
+        await StorageService.saveToken(token);
 
-    if (response.containsKey('jwt')) {
-      final token = response['jwt'];
-      await StorageService.saveToken(token);
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainTabView()),
+          );
+        }
+      } else {
+        throw Exception('Invalid login response: Missing token.');
+      }
+    } catch (e) {
+      debugPrint('Login Error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
+   final GoogleSignInService _googleSignInService = GoogleSignInService();
+
+  Future<void> _handleGoogleSignIn() async {
+    final Map<String, dynamic>? userData = await _googleSignInService.signInWithGoogle();
+    if (userData != null) {
+      // Here you could save the user data or token, etc.
       if (context.mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const MainTabView()),
         );
       }
-    } else {
-      throw Exception('Invalid login response: Missing token.');
-    }
-  } catch (e) {
-    debugPrint('Login Error: $e');
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: ${e.toString()}')),
-      );
     }
   }
-}
+
+ // To display error messages
+
+  Future<void> _handleFacebookLogin() async {
+    try {
+      final LoginResult result = await FacebookAuth.instance.login();
+
+      if (result.status == LoginStatus.success) {
+        final userData = await FacebookAuth.instance.getUserData();
+        setState(() {
+          _isLoggedIn = true;
+          _userData = userData;
+          _errorMessage = null; // Clear any previous error
+        });
+        print(_userData);
+      } else {
+        setState(() {
+          _errorMessage = result.message; // Store the error message
+        });
+        debugPrint('Facebook login failed: ${result.message}');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString(); // Store the error message
+      });
+      debugPrint('Error during Facebook login: $e');
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +199,7 @@ Future<void> handleLogin() async {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     GestureDetector(
-                      onTap: () {},
+                      onTap: _handleGoogleSignIn,
                       child: Container(
                         width: 50,
                         height: 50,
@@ -171,7 +221,7 @@ Future<void> handleLogin() async {
                     ),
                     SizedBox(width: media.width * 0.04),
                     GestureDetector(
-                      onTap: () {},
+                      onTap: _handleFacebookLogin,
                       child: Container(
                         width: 50,
                         height: 50,
