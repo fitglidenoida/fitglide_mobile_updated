@@ -1,3 +1,15 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.1.1' // Adjust the version based on your project setup
+        classpath 'com.google.gms:google-services:4.3.15' // Add the required dependency here
+    }
+}
+
+
 allprojects {
     repositories {
         google()

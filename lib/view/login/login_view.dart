@@ -20,10 +20,7 @@ class _LoginViewState extends State<LoginView> {
   bool isCheck = false;
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-    bool _isLoggedIn = false;
-  Map<String, dynamic>? _userData;
-  String? _errorMessage;
-  
+
   Future<void> handleLogin() async {
     try {
       final authService = AuthService();
@@ -55,22 +52,36 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-   final GoogleSignInService _googleSignInService = GoogleSignInService();
-
   Future<void> _handleGoogleSignIn() async {
-    final Map<String, dynamic>? userData = await _googleSignInService.signInWithGoogle();
-    if (userData != null) {
-      // Here you could save the user data or token, etc.
+    try {
+      final googleAccount = await GoogleSignInHelper.signIn();
+      if (googleAccount != null) {
+        final googleAuth = await GoogleSignInHelper.getAuthentication(googleAccount);
+        if (googleAuth != null) {
+          // Here you could use `googleAuth.idToken` or `googleAuth.accessToken` for backend authentication
+          await StorageService.saveToken(googleAuth.idToken ?? '');
+
+          if (context.mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const MainTabView()),
+            );
+          }
+        } else {
+          debugPrint('Failed to retrieve Google authentication details.');
+        }
+      } else {
+        debugPrint('Google sign-in was canceled.');
+      }
+    } catch (e) {
+      debugPrint('Google Sign-In Error: $e');
       if (context.mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainTabView()),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google Sign-In failed: $e')),
         );
       }
     }
   }
-
- // To display error messages
 
   Future<void> _handleFacebookLogin() async {
     try {
@@ -98,7 +109,9 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-
+  bool _isLoggedIn = false;
+  Map<String, dynamic>? _userData;
+  String? _errorMessage;
 
   @override
   Widget build(BuildContext context) {
