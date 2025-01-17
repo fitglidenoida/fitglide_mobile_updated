@@ -6,9 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:strava_client/strava_client.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StravaConnectButton extends StatefulWidget {
-  const StravaConnectButton({Key? key}) : super(key: key);
+  const StravaConnectButton({super.key});
 
   @override
   _StravaConnectButtonState createState() => _StravaConnectButtonState();
@@ -26,11 +27,12 @@ class _StravaConnectButtonState extends State<StravaConnectButton> {
 
   bool isLoggedIn = false;
   TokenResponse? token;
-@override
-void initState() {
-  stravaClient = StravaClient(secret: _clientSecret, clientId: _clientId.toString());
-  super.initState();
-}
+
+  @override
+  void initState() {
+    stravaClient = StravaClient(secret: _clientSecret, clientId: _clientId.toString());
+    super.initState();
+  }
 
   FutureOr<Null> showErrorMessage(dynamic error, dynamic stackTrace) {
     if (error is Fault) {
@@ -46,32 +48,36 @@ void initState() {
     }
   }
 
-void testAuthentication() {
-  final redirectUri = "https://fitglide.in/callback";
-  debugPrint("Using redirect URI: $redirectUri");
+  // This method initiates the Strava authentication flow for mobile apps
+  void initiateAuthentication() async {
+    final redirectUri = "https://fitglide.in/callback"; // Custom scheme for mobile callback
+    final scope = "activity:read_all,profile:read_all,read";
 
-  StravaAuth(stravaClient).testAuthentication(
-    [
-      AuthenticationScope.profile_read_all,
-      AuthenticationScope.read_all,
-      AuthenticationScope.activity_read_all
-    ],
-    redirectUri,
-  ).then((token) {
-    setState(() {
-      isLoggedIn = true;
-      this.token = token;
+    final Uri uri = Uri.parse('https://www.strava.com/oauth/mobile/authorize')
+        .replace(queryParameters: {
+      'client_id': _clientId.toString(),
+      'redirect_uri': redirectUri,
+      'response_type': 'code',
+      'approval_prompt': 'auto',
+      'scope': scope,
     });
-    _textEditingController.text = token.accessToken;
-  }).catchError(showErrorMessage);
-}
 
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      throw 'Could not launch $uri';
+    }
+  }
+
+  // Here, you would typically handle the callback. For Flutter, you'd need a method to handle 
+  // the redirect back from Strava, which could involve registering for a custom URL scheme
+  // in your Android/iOS setup and handling it in your app.
 
   void testDeauth() {
     StravaAuth(stravaClient).testDeauthorize().then((value) {
       setState(() {
         isLoggedIn = false;
-        this.token = null;
+        token = null;
         _textEditingController.clear();
       });
     }).catchError(showErrorMessage);
@@ -98,39 +104,35 @@ void testAuthentication() {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [_stravalogin(), ],
+          children: [_stravalogin()],
         ),
       ),
     );
   }
 
-Widget _stravalogin() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      CustomAnimatedToggleSwitch<bool>(
-        current: isLoggedIn,
-        values: const [false, true],
-        animationDuration: const Duration(milliseconds: 200),
-        animationCurve: Curves.easeInOut,
-        onChanged: (value) {
-          setState(() {
-            isLoggedIn = value;
-          });
-          if (value) {
-            // If toggled to "on", initiate login
-            testAuthentication();
-          } else {
-            // If toggled to "off", initiate deauthorization
-            testDeauth();
-          }
-        },
-        iconBuilder: (context, local, global) {
-          // Optionally, you can customize the icons inside the toggle
-          return SizedBox(); // Empty for now
-        },
-        wrapperBuilder: (context, global, child) {
-          return Stack(
+  Widget _stravalogin() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CustomAnimatedToggleSwitch<bool>(
+          current: isLoggedIn,
+          values: const [false, true],
+          animationDuration: const Duration(milliseconds: 200),
+          animationCurve: Curves.easeInOut,
+          onChanged: (value) {
+            setState(() {
+              isLoggedIn = value;
+            });
+            if (value) {
+              // If toggled to "on", initiate login
+              initiateAuthentication();
+            } else {
+              // If toggled to "off", initiate deauthorization
+              testDeauth();
+            }
+          },
+          iconBuilder: (context, local, global) => SizedBox(), // Empty for now
+          wrapperBuilder: (context, global, child) => Stack(
             alignment: Alignment.center,
             children: [
               Positioned(
@@ -140,21 +142,19 @@ Widget _stravalogin() {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(colors: TColor.secondaryG),
-                    borderRadius: const BorderRadius.all(Radius.circular(50.0)),
+                    borderRadius: BorderRadius.circular(50.0),
                   ),
                 ),
               ),
               child,
             ],
-          );
-        },
-        foregroundIndicatorBuilder: (context, global) {
-          return SizedBox.fromSize(
+          ),
+          foregroundIndicatorBuilder: (context, global) => SizedBox.fromSize(
             size: const Size(10, 10),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: TColor.white,
-                borderRadius: const BorderRadius.all(Radius.circular(50.0)),
+                borderRadius: BorderRadius.circular(50.0),
                 boxShadow: const [
                   BoxShadow(
                     color: Colors.black38,
@@ -165,31 +165,29 @@ Widget _stravalogin() {
                 ],
               ),
             ),
-          );
-        },
-      ),
-      const SizedBox(height: 16),
-      TextField(
-        minLines: 1,
-        maxLines: 3,
-        controller: _textEditingController,
-        decoration: InputDecoration(
-          border: OutlineInputBorder(),
-          label: const Text("Access Token"),
-          suffixIcon: TextButton(
-            child: const Text("Copy"),
-            onPressed: () {
-              Clipboard.setData(
-                      ClipboardData(text: _textEditingController.text))
-                  .then((value) => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Copied!")),
-                      ));
-            },
           ),
         ),
-      ),
-      const Divider(),
-    ],
-  );
-}
+        const SizedBox(height: 16),
+        TextField(
+          minLines: 1,
+          maxLines: 3,
+          controller: _textEditingController,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(),
+            label: const Text("Access Token"),
+            suffixIcon: TextButton(
+              child: const Text("Copy"),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _textEditingController.text))
+                    .then((_) => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Copied!")),
+                        ));
+              },
+            ),
+          ),
+        ),
+        const Divider(),
+      ],
+    );
+  }
 }

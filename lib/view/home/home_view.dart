@@ -2,6 +2,7 @@ import 'package:dotted_dashed_line/dotted_dashed_line.dart';
 import 'package:fitglide_mobile_application/common_widget/round_button.dart';
 import 'package:fitglide_mobile_application/common_widget/workout_row.dart';
 import 'package:fitglide_mobile_application/services/api_service.dart';
+import 'package:fitglide_mobile_application/services/google_sign_in.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:simple_animation_progress_bar/simple_animation_progress_bar.dart';
@@ -23,7 +24,7 @@ class _HomeViewState extends State<HomeView> {
   String firstName = "Guest";
   String username = "";
   double? bmi;
-  String bmiCategory = "Calculating BMI..."; // Declare bmiCategory here
+  String bmiCategory = ""; // Declare bmiCategory here
   bool isLoading = true;
 
   List lastWorkoutArr = [
@@ -100,40 +101,44 @@ class _HomeViewState extends State<HomeView> {
     fetchUserData();
   }
 
-  Future<void> fetchUserData() async {
-    try {
-      final dataService = DataService();
-      final response = await dataService.fetchUserDetails(); // Fetch user details from API
+Future<void> fetchUserData() async {
+  try {
+    // Attempt API fetch
+    final dataService = DataService();
+    final response = await dataService.fetchUserDetails();
 
-      debugPrint('API Response: $response'); // Debugging the response
+    debugPrint('API Response: $response');
+    setState(() {
+      firstName = response['First_name'] ?? response['first_name'] ?? "Guest";
+      username = response['username'] ?? "";
+    });
 
-      // Extract the 'first_name' and 'username' from the response
+    if (username.isNotEmpty) {
+      await fetchHealthVitals(username);
+    } else {
+      throw Exception("API data not found, falling back to Google Sign-In.");
+    }
+  } catch (apiError) {
+    debugPrint('API Error: $apiError');
+    // Fallback to Google Sign-In
+    final googleData = await GoogleSignInHelper.signInAndFetchUserData();
+
+    if (googleData != null) {
       setState(() {
-        firstName = response['First_name'] ?? response['first_name'] ?? "Guest";
-        username = response['username'] ?? ""; // Extract username
+        firstName = googleData['firstName'] ?? "Guest";
+        username = googleData['email'] ?? "";
       });
-
-      debugPrint('Updated firstName: $firstName'); // Debugging the updated name
-      debugPrint('Updated username: $username'); // Debugging the username
-
-      if (username.isNotEmpty) {
-        // Proceed to fetch health vitals using the extracted username
-        await fetchHealthVitals(username);
-      } else {
-        setState(() {
-          bmiCategory = "Error: Username not found.";
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching user data: $e');
+      debugPrint('Google Sign-In Data: $googleData');
+    } else {
+      debugPrint('Google Sign-In failed.');
       setState(() {
         firstName = "Guest";
-        bmiCategory = "Error fetching user data.";
-        isLoading = false;
+        username = "";
       });
     }
   }
+}
+
 
   // Fetch health vitals and calculate BMI
   Future<void> fetchHealthVitals(String username) async {

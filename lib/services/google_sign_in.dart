@@ -1,5 +1,5 @@
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 class GoogleSignInHelper {
@@ -10,7 +10,7 @@ class GoogleSignInHelper {
     if (kIsWeb || Platform.isAndroid) {
       // Web or Android: No clientId needed, only scopes
       googleSignIn = GoogleSignIn(
-        scopes: ['email'],
+        scopes: ['email', 'profile',],
       );
     } else if (Platform.isIOS || Platform.isMacOS) {
       // iOS or macOS: Specify the clientId
@@ -26,16 +26,32 @@ class GoogleSignInHelper {
   }
 
   // Method to handle Google Sign-In
-  static Future<GoogleSignInAccount?> signIn() async {
+  static Future<Map<String, dynamic>?> signInAndFetchUserData() async {
     try {
-      final GoogleSignIn googleSignIn = getGoogleSignIn();
-      final GoogleSignInAccount? googleAccount = await googleSignIn.signIn();
-      return googleAccount;
+    final GoogleSignIn googleSignIn = getGoogleSignIn();
+    final GoogleSignInAccount? googleAccount = await googleSignIn.signIn();
+
+      if (googleAccount != null) {
+        final String email = googleAccount.email;
+        final String? firstName = googleAccount.displayName?.split(" ").first;
+        final String? photoUrl = googleAccount.photoUrl;
+
+        debugPrint('Google Account Data: email=$email, firstName=$firstName, photoUrl=$photoUrl');
+
+
+        return {
+          'email': email,
+          'firstName': firstName,
+          'photoUrl': photoUrl,
+        };
+      }
     } catch (e) {
       print("Error during Google Sign-In: $e");
-      return null;
     }
+    return null;
   }
+
+
 
   // Method to fetch authentication details
   static Future<GoogleSignInAuthentication?> getAuthentication(

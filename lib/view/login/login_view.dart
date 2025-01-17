@@ -52,36 +52,31 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    try {
-      final googleAccount = await GoogleSignInHelper.signIn();
-      if (googleAccount != null) {
-        final googleAuth = await GoogleSignInHelper.getAuthentication(googleAccount);
-        if (googleAuth != null) {
-          // Here you could use `googleAuth.idToken` or `googleAuth.accessToken` for backend authentication
-          await StorageService.saveToken(googleAuth.idToken ?? '');
+Future<void> _handleGoogleSignIn() async {
+  final Map<String, dynamic>? userData = await GoogleSignInHelper.signInAndFetchUserData();
+  if (userData != null) {
+    final String email = userData['email'];
+    final String? firstName = userData['firstName'];
+    // Save the email and first name
+    await StorageService.saveData('username', email); // Save email as username
+    await StorageService.saveData('firstName', firstName);
 
-          if (context.mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const MainTabView()),
-            );
-          }
-        } else {
-          debugPrint('Failed to retrieve Google authentication details.');
-        }
-      } else {
-        debugPrint('Google sign-in was canceled.');
-      }
-    } catch (e) {
-      debugPrint('Google Sign-In Error: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign-In failed: $e')),
-        );
-      }
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MainTabView(), // Redirect to profile setup if required
+        ),
+      );
+    }
+  } else {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Google Sign-In failed")),
+      );
     }
   }
+}
 
   Future<void> _handleFacebookLogin() async {
     try {
