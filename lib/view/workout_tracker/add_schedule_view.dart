@@ -5,6 +5,7 @@ import '../../common/colo_extension.dart';
 import '../../common/common.dart';
 import '../../common_widget/icon_title_next_row.dart';
 import '../../common_widget/round_button.dart';
+import '../../services/api_service.dart';
 
 class AddScheduleView extends StatefulWidget {
   final DateTime date;
@@ -15,6 +16,46 @@ class AddScheduleView extends StatefulWidget {
 }
 
 class _AddScheduleViewState extends State<AddScheduleView> {
+  DateTime _selectedDateTime = DateTime.now();
+  String? _selectedWorkout;
+  String? _selectedDifficulty;
+  int? _customRepetitions;
+  double? _customWeights;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDateTime = widget.date;
+  }
+
+  Future<void> _saveSchedule() async {
+    try {
+      final response = await ApiService.addWorkoutPlan({
+        'Title': _selectedWorkout ?? 'New Workout',
+        'scheduled_date': _selectedDateTime.toUtc().toIso8601String(),
+        'difficulty': _selectedDifficulty ?? 'Beginner',
+        'repetitions': _customRepetitions ?? 15,
+        'weights': _customWeights ?? 0.0,
+        'exercises': [], // Add default or dynamic exercises as needed
+        'completed': false,
+      });
+      debugPrint('Workout schedule created: $response');
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workout schedule saved successfully')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving workout schedule: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save workout schedule: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
@@ -73,91 +114,196 @@ class _AddScheduleViewState extends State<AddScheduleView> {
       backgroundColor: TColor.white,
       body: Container(
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(
-            children: [
-              Image.asset(
-                "assets/img/date.png",
-                width: 20,
-                height: 20,
-              ),
-              const SizedBox(
-                width: 8,
-              ),
-              Text(
-                dateToString(widget.date, formatStr: "E, dd MMMM yyyy"),
-                style: TextStyle(color: TColor.gray, fontSize: 14),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          Text(
-            "Time",
-            style: TextStyle(
-                color: TColor.black, fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-          SizedBox(
-            height: media.width * 0.35,
-            child: CupertinoDatePicker(
-              onDateTimeChanged: (newDate) {},
-              initialDateTime: DateTime.now(),
-              use24hFormat: false,
-              minuteInterval: 1,
-              mode: CupertinoDatePickerMode.time,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Image.asset(
+                  "assets/img/date.png",
+                  width: 20,
+                  height: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  dateToString(_selectedDateTime, formatStr: "E, dd MMMM yyyy"),
+                  style: TextStyle(color: TColor.gray, fontSize: 14),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          Text(
-            "Details Workout",
-            style: TextStyle(
-                color: TColor.black, fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          IconTitleNextRow(
+            const SizedBox(height: 20),
+            Text(
+              "Time",
+              style: TextStyle(
+                  color: TColor.black, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(
+              height: media.width * 0.35,
+              child: CupertinoDatePicker(
+                onDateTimeChanged: (newDateTime) {
+                  setState(() {
+                    _selectedDateTime = newDateTime;
+                  });
+                },
+                initialDateTime: _selectedDateTime,
+                use24hFormat: false,
+                minuteInterval: 1,
+                mode: CupertinoDatePickerMode.time,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              "Details Workout",
+              style: TextStyle(
+                  color: TColor.black, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            IconTitleNextRow(
               icon: "assets/img/choose_workout.png",
               title: "Choose Workout",
-              time: "Upperbody",
+              time: _selectedWorkout ?? "Select Workout",
               color: TColor.lightGray,
-              onPressed: () {}),
-          const SizedBox(
-            height: 10,
-          ),
-          IconTitleNextRow(
+              onPressed: () async {
+                // Mock workout selection (replace with actual data or navigation)
+                final selected = await showDialog<String>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Select Workout'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: const Text('Upperbody Workout'),
+                          onTap: () => Navigator.pop(context, 'Upperbody Workout'),
+                        ),
+                        ListTile(
+                          title: const Text('Fullbody Workout'),
+                          onTap: () => Navigator.pop(context, 'Fullbody Workout'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+                if (selected != null) {
+                  setState(() {
+                    _selectedWorkout = selected;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 10),
+            IconTitleNextRow(
               icon: "assets/img/difficulity.png",
-              title: "Difficulity",
-              time: "Beginner",
+              title: "Difficulty",
+              time: _selectedDifficulty ?? "Select Difficulty",
               color: TColor.lightGray,
-              onPressed: () {}),
-          const SizedBox(
-            height: 10,
-          ),
-          IconTitleNextRow(
+              onPressed: () async {
+                final selected = await showDialog<String>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Select Difficulty'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: const Text('Beginner'),
+                          onTap: () => Navigator.pop(context, 'Beginner'),
+                        ),
+                        ListTile(
+                          title: const Text('Intermediate'),
+                          onTap: () => Navigator.pop(context, 'Intermediate'),
+                        ),
+                        ListTile(
+                          title: const Text('Advanced'),
+                          onTap: () => Navigator.pop(context, 'Advanced'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+                if (selected != null) {
+                  setState(() {
+                    _selectedDifficulty = selected;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 10),
+            IconTitleNextRow(
               icon: "assets/img/repetitions.png",
               title: "Custom Repetitions",
-              time: "",
+              time: _customRepetitions != null ? "$_customRepetitions times" : "Select Repetitions",
               color: TColor.lightGray,
-              onPressed: () {}),
-          const SizedBox(
-            height: 10,
-          ),
-          IconTitleNextRow(
+              onPressed: () async {
+                final selected = await showDialog<int>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Select Repetitions'),
+                    content: CupertinoPicker(
+                      itemExtent: 40,
+                      onSelectedItemChanged: (index) {},
+                      scrollController: FixedExtentScrollController(initialItem: _customRepetitions ?? 0),
+                      children: List.generate(60, (index) => Center(
+                        child: Text("${index + 1} times", style: TextStyle(color: TColor.black, fontSize: 16)),
+                      )),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, _customRepetitions ?? 1),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                if (selected != null) {
+                  setState(() {
+                    _customRepetitions = selected;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 10),
+            IconTitleNextRow(
               icon: "assets/img/repetitions.png",
               title: "Custom Weights",
-              time: "",
+              time: _customWeights != null ? "$_customWeights kg" : "Select Weights",
               color: TColor.lightGray,
-              onPressed: () {}),
-          const Spacer(),
-          RoundButton(title: "Save", onPressed: () {}),
-          const SizedBox(
-            height: 20,
-          ),
-        ]),
+              onPressed: () async {
+                final selected = await showDialog<double>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Select Weights'),
+                    content: CupertinoPicker(
+                      itemExtent: 40,
+                      onSelectedItemChanged: (index) {},
+                      scrollController: FixedExtentScrollController(initialItem: (_customWeights ?? 0).toInt()),
+                      children: List.generate(100, (index) => Center(
+                        child: Text("${index + 1} kg", style: TextStyle(color: TColor.black, fontSize: 16)),
+                      )),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, (_customWeights ?? 1).toDouble()),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                if (selected != null) {
+                  setState(() {
+                    _customWeights = selected;
+                  });
+                }
+              },
+            ),
+            const Spacer(),
+            RoundButton(
+              title: "Save",
+              onPressed: _saveSchedule,
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }

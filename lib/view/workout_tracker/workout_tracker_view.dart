@@ -1,11 +1,11 @@
+import 'package:fitglide_mobile_application/common/common.dart';
+import 'package:fitglide_mobile_application/services/api_service.dart';
+import 'package:fitglide_mobile_application/view/workout_tracker/exercises_stpe_details.dart';
+import 'package:fitglide_mobile_application/view/workout_tracker/workout_schedule_view.dart';
 import '../../common/colo_extension.dart';
-import '../../view/home/activity_tracker_view.dart';
-import '../../view/workout_tracker/workour_detail_view.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-
 import '../../common_widget/round_button.dart';
-import '../../common_widget/upcoming_workout_row.dart';
 import '../../common_widget/what_train_row.dart';
 
 class WorkoutTrackerView extends StatefulWidget {
@@ -16,102 +16,92 @@ class WorkoutTrackerView extends StatefulWidget {
 }
 
 class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
-  List latestArr = [
-    {
-      "image": "assets/img/Workout1.png",
-      "title": "Fullbody Workout",
-      "time": "Today, 03:00pm"
-    },
-    {
-      "image": "assets/img/Workout2.png",
-      "title": "Upperbody Workout",
-      "time": "June 05, 02:00pm"
-    },
-  ];
+  List<Map<String, dynamic>> upcomingWorkouts = [];
+  bool isLoading = true;
+  double todayCompletionPercentage = 0.0;
 
-  List whatArr = [
-    {
-      "image": "assets/img/what_1.png",
-      "title": "Fullbody Workout",
-      "exercises": "11 Exercises",
-      "time": "32mins"
-    },
-    {
-      "image": "assets/img/what_2.png",
-      "title": "Lowebody Workout",
-      "exercises": "12 Exercises",
-      "time": "40mins"
-    },
-    {
-      "image": "assets/img/what_3.png",
-      "title": "AB Workout",
-      "exercises": "14 Exercises",
-      "time": "20mins"
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() {
+      isLoading = true;
+    });
+    try {
+      final now = DateTime.now().toLocal();
+      final todayStart = DateTime(now.year, now.month, now.day).toLocal();
+      final response = await ApiService.get(
+          'workout-plans?populate=exercises&filters[scheduled_date][\$gte]=${todayStart.toIso8601String()}&sort[0]=scheduled_date:asc');
+      final scheduledData = response['data'] as List<dynamic>? ?? [];
+
+      setState(() {
+        upcomingWorkouts = scheduledData.map((workout) {
+          final exercises = workout['exercises'] as List<dynamic>? ?? [];
+          final stepsList = exercises.isNotEmpty
+              ? (exercises.first['steps'] as String?)?.split('\n').where((step) => step.trim().isNotEmpty).toList() ?? []
+              : [];
+          final totalTime = exercises.fold<int>(0, (sum, e) => sum + (e['duration'] as int? ?? 0));
+          final totalCalories = exercises.fold<int>(
+              0, (sum, e) => sum + (e['calories_per_minute'] as int? ?? 0) * (e['duration'] as int? ?? 0));
+          final completed = workout['completed'] as bool? ?? false;
+          final scheduledDateStr = workout['scheduled_date'] as String? ?? '';
+          final scheduledDate = stringToDate(scheduledDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",).toLocal();
+          return {
+            "documentId": workout['id'].toString(),
+            "image": "assets/img/what_${(scheduledData.indexOf(workout) % 3) + 1}.png",
+            "title": exercises.isNotEmpty ? (exercises.first['name'] as String? ?? 'Unnamed Exercise') : 'Unnamed Workout',
+            "exercises": "${exercises.length} Exercises",
+            "time": "$totalTime mins",
+            "calories": "$totalCalories kcal",
+            "set": stepsList.map((step) => {
+                  "image": "assets/img/img_${stepsList.indexOf(step) % 2 + 1}.png",
+                  "title": step.trim(),
+                  "value": totalTime > 0 ? '${totalTime ~/ stepsList.length} min' : 'Unknown',
+                }).toList(),
+            "difficulty": exercises.isNotEmpty ? (exercises.first['difficulty'] as String? ?? 'N/A') : 'N/A',
+            "completed": completed,
+            "scheduled_date": dateToString(scheduledDate, formatStr: "dd/MM/yyyy hh:mm aa"),
+          };
+        }).toList();
+
+        final todayWorkouts = scheduledData.where((w) {
+          final scheduledDateStr = w['scheduled_date'] as String? ?? '';
+          final scheduledDate = stringToDate(scheduledDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", ).toLocal();
+          return scheduledDate.isAfter(todayStart) && scheduledDate.isBefore(todayStart.add(const Duration(days: 1)));
+        }).toList();
+        int totalToday = todayWorkouts.length;
+        int completedToday = todayWorkouts.where((w) => w['completed'] == true).length;
+        todayCompletionPercentage = totalToday > 0 ? (completedToday / totalToday) * 100 : 0.0;
+
+        isLoading = false;
+        debugPrint('WorkoutTrackerView - Fetched ${upcomingWorkouts.length} workouts');
+      });
+    } catch (e) {
+      debugPrint('Error fetching data in WorkoutTrackerView: $e');
+      setState(() {
+        isLoading = false;
+        todayCompletionPercentage = 0.0;
+        upcomingWorkouts = [];
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load workouts: $e')),
+        );
+      }
     }
-  ];
+  }
 
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
     return Container(
-      decoration:
-          BoxDecoration(gradient: LinearGradient(colors: TColor.primaryG)),
+      decoration: BoxDecoration(gradient: LinearGradient(colors: TColor.primaryG)),
       child: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
-            SliverAppBar(
-              backgroundColor: Colors.transparent,
-              centerTitle: true,
-              elevation: 0,
-              // pinned: true,
-              leading: InkWell(
-                onTap: () {
-                  Navigator.pop(context);
-                },
-                child: Container(
-                  margin: const EdgeInsets.all(8),
-                  height: 40,
-                  width: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                      color: TColor.lightGray,
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Image.asset(
-                    "assets/img/black_btn.png",
-                    width: 15,
-                    height: 15,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-              title: Text(
-                "Workout Tracker",
-                style: TextStyle(
-                    color: TColor.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700),
-              ),
-              actions: [
-                InkWell(
-                  onTap: () {},
-                  child: Container(
-                    margin: const EdgeInsets.all(8),
-                    height: 40,
-                    width: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                        color: TColor.lightGray,
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Image.asset(
-                      "assets/img/more_btn.png",
-                      width: 15,
-                      height: 15,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                )
-              ],
-            ),
             SliverAppBar(
               backgroundColor: Colors.transparent,
               centerTitle: true,
@@ -125,89 +115,35 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                 width: double.maxFinite,
                 child: LineChart(
                   LineChartData(
-                    lineTouchData: LineTouchData(
-                      enabled: true,
-                      handleBuiltInTouches: false,
-                      touchCallback:
-                          (FlTouchEvent event, LineTouchResponse? response) {
-                        if (response == null || response.lineBarSpots == null) {
-                          return;
-                        }
-                        // if (event is FlTapUpEvent) {
-                        //   final spotIndex =
-                        //       response.lineBarSpots!.first.spotIndex;
-                        //   showingTooltipOnSpots.clear();
-                        //   setState(() {
-                        //     showingTooltipOnSpots.add(spotIndex);
-                        //   });
-                        // }
-                      },
-                      mouseCursorResolver:
-                          (FlTouchEvent event, LineTouchResponse? response) {
-                        if (response == null || response.lineBarSpots == null) {
-                          return SystemMouseCursors.basic;
-                        }
-                        return SystemMouseCursors.click;
-                      },
-                      getTouchedSpotIndicator:
-                          (LineChartBarData barData, List<int> spotIndexes) {
-                        return spotIndexes.map((index) {
-                          return TouchedSpotIndicatorData(
-                            const FlLine(
-                              color: Colors.transparent,
-                            ),
-                            FlDotData(
-                              show: true,
-                              getDotPainter: (spot, percent, barData, index) =>
-                                  FlDotCirclePainter(
-                                radius: 3,
-                                color: Colors.white,
-                                strokeWidth: 3,
-                                strokeColor: TColor.secondaryColor1,
-                              ),
-                            ),
-                          );
-                        }).toList();
-                      },
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (LineBarSpot touchedSpot) {
-    // Return a color based on the condition or data in the touched spot
-    if (touchedSpot.y > 10) {
-      return Colors.red; // High values
-    } else if (touchedSpot.y > 5) {
-      return Colors.orange; // Medium values
-    } else {
-      return TColor.secondaryColor1; // Default or low values
-    }
-  },
-                        tooltipRoundedRadius: 20,
-                        getTooltipItems: (List<LineBarSpot> lineBarsSpot) {
-                          return lineBarsSpot.map((lineBarSpot) {
-                            return LineTooltipItem(
-                              "${lineBarSpot.x.toInt()} mins ago",
-                              const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          }).toList();
-                        },
+                    lineTouchData: lineTouchData1,
+                    lineBarsData: [
+                      LineChartBarData(
+                        isCurved: true,
+                        color: TColor.white,
+                        barWidth: 4,
+                        isStrokeCapRound: true,
+                        dotData: const FlDotData(show: true,),
+                        belowBarData: BarAreaData(show: false),
+                        spots: [
+                          const FlSpot(1, 0),
+                          const FlSpot(2, 0),
+                          const FlSpot(3, 0),
+                          FlSpot(4, todayCompletionPercentage.clamp(0, 100)),
+                          const FlSpot(5, 0),
+                          const FlSpot(6, 0),
+                          const FlSpot(7, 0),
+                        ],
                       ),
-                    ),
-                    lineBarsData: lineBarsData1,
-                    minY: -0.5,
-                    maxY: 110,
+                    ],
+                    minY: 0,
+                    maxY: 100,
                     titlesData: FlTitlesData(
-                        show: true,
-                        leftTitles: const AxisTitles(),
-                        topTitles: const AxisTitles(),
-                        bottomTitles: AxisTitles(
-                          sideTitles: bottomTitles,
-                        ),
-                        rightTitles: AxisTitles(
-                          sideTitles: rightTitles,
-                        )),
+                      show: true,
+                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(),
+                      bottomTitles: AxisTitles(sideTitles: bottomTitles),
+                      rightTitles: AxisTitles(sideTitles: rightTitles),
+                    ),
                     gridData: FlGridData(
                       show: true,
                       drawHorizontalLine: true,
@@ -222,9 +158,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                     ),
                     borderData: FlBorderData(
                       show: true,
-                      border: Border.all(
-                        color: Colors.transparent,
-                      ),
+                      border: Border.all(color: Colors.transparent),
                     ),
                   ),
                 ),
@@ -232,200 +166,131 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
             ),
           ];
         },
-        body: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-              color: TColor.white,
-              borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(25), topRight: Radius.circular(25))),
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  Container(
-                    width: 50,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: TColor.gray.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(3)),
-                  ),
-                  SizedBox(
-                    height: media.width * 0.05,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 15, horizontal: 15),
-                    decoration: BoxDecoration(
-                      color: TColor.primaryColor2.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        body: Material( // Ensure Material widget for proper theming
+          color: TColor.white,
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(25), topRight: Radius.circular(25)),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                    child: Column(
                       children: [
-                        Text(
-                          "Daily Workout Schedule",
-                          style: TextStyle(
-                              color: TColor.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: 50,
+                          height: 4,
+                          decoration: BoxDecoration(
+                              color: TColor.gray.withOpacity(0.3), borderRadius: BorderRadius.circular(3)),
                         ),
-                        SizedBox(
-                          width: 75,
-                          height: 30,
-                          child: RoundButton(
-                            title: "Check",
-                            type: RoundButtonType.bgGradient,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ActivityTrackerView(),
+                        SizedBox(height: media.width * 0.05),
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
+                          decoration: BoxDecoration(
+                            color: TColor.primaryColor2.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Daily Workout Schedule",
+                                style: TextStyle(
+                                    color: TColor.black, fontSize: 14, fontWeight: FontWeight.w700),
+                              ),
+                              SizedBox(
+                                width: 75,
+                                height: 30,
+                                child: RoundButton(
+                                  title: "Check",
+                                  type: RoundButtonType.bgGradient,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const WorkoutScheduleView(),
+                                      ),
+                                    ).then((_) => _fetchData());
+                                  },
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: media.width * 0.05),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Upcoming Workouts",
+                              style: TextStyle(
+                                  color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
+                            ),
+                            if (upcomingWorkouts.isEmpty)
+                              Text(
+                                "No upcoming workouts",
+                                style: TextStyle(color: TColor.gray, fontSize: 12),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: media.width * 0.02),
+                        if (upcomingWorkouts.isNotEmpty)
+                          ListView.builder(
+                            padding: EdgeInsets.zero,
+                            physics: const NeverScrollableScrollPhysics(),
+                            shrinkWrap: true,
+                            itemCount: upcomingWorkouts.length,
+                            itemBuilder: (context, index) {
+                              var wObj = upcomingWorkouts[index];
+                              return InkWell(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ExercisesStepDetails(
+                                        eObj: wObj,
+                                        documentId: wObj['documentId'],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: WhatTrainRow(wObj: wObj),
                               );
                             },
                           ),
-                        )
+                        SizedBox(height: media.width * 0.1),
                       ],
                     ),
                   ),
-                  SizedBox(
-                    height: media.width * 0.05,
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Upcoming Workout",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          "See More",
-                          style: TextStyle(
-                              color: TColor.gray,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      )
-                    ],
-                  ),
-                  ListView.builder(
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: latestArr.length,
-                      itemBuilder: (context, index) {
-                        var wObj = latestArr[index] as Map? ?? {};
-                        return UpcomingWorkoutRow(wObj: wObj);
-                      }),
-                  SizedBox(
-                    height: media.width * 0.05,
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "What Do You Want to Train",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                  ListView.builder(
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: whatArr.length,
-                      itemBuilder: (context, index) {
-                        var wObj = whatArr[index] as Map? ?? {};
-                        return InkWell(
-                          onTap: (){
-                            Navigator.push(context, MaterialPageRoute(builder: (context) =>  WorkoutDetailView( dObj: wObj, ) ));
-                          },
-                          child:  WhatTrainRow(wObj: wObj) );
-                      }),
-                  SizedBox(
-                    height: media.width * 0.1,
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
     );
   }
 
-LineTouchData get lineTouchData1 => LineTouchData(
-      handleBuiltInTouches: true,
-      touchTooltipData: LineTouchTooltipData(
-        getTooltipColor: (LineBarSpot touchedSpot) {
-          // Example: Always use a semi-transparent blue-grey background
-          return Colors.blueGrey.withOpacity(0.8);
-        },
-      ),
-    );
-
-  List<LineChartBarData> get lineBarsData1 => [
-        lineChartBarData1_1,
-        lineChartBarData1_2,
-      ];
-
-  LineChartBarData get lineChartBarData1_1 => LineChartBarData(
-        isCurved: true,
-        color: TColor.white,
-        barWidth: 4,
-        isStrokeCapRound: true,
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(show: false),
-        spots: const [
-          FlSpot(1, 35),
-          FlSpot(2, 70),
-          FlSpot(3, 40),
-          FlSpot(4, 80),
-          FlSpot(5, 25),
-          FlSpot(6, 70),
-          FlSpot(7, 35),
-        ],
-      );
-
-  LineChartBarData get lineChartBarData1_2 => LineChartBarData(
-        isCurved: true,
-        color: TColor.white.withOpacity(0.5),
-        barWidth: 2,
-        isStrokeCapRound: true,
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: false,
+  LineTouchData get lineTouchData1 => LineTouchData(
+        handleBuiltInTouches: true,
+        touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (LineBarSpot touchedSpot) => TColor.primaryColor2.withOpacity(0.8),
+          tooltipRoundedRadius: 10,
+          tooltipPadding: const EdgeInsets.all(8),
+          getTooltipItems: (List<LineBarSpot> touchedSpots) {
+            return touchedSpots.map((spot) {
+              return LineTooltipItem(
+                '${spot.y.toStringAsFixed(1)}%',
+                TextStyle(color: TColor.black, fontSize: 12),
+              );
+            }).toList();
+          },
         ),
-        spots: const [
-          FlSpot(1, 80),
-          FlSpot(2, 50),
-          FlSpot(3, 90),
-          FlSpot(4, 40),
-          FlSpot(5, 80),
-          FlSpot(6, 35),
-          FlSpot(7, 60),
-        ],
       );
 
   SideTitles get rightTitles => SideTitles(
         getTitlesWidget: rightTitleWidgets,
         showTitles: true,
-        interval: 20,
+        interval: 25,
         reservedSize: 40,
       );
 
@@ -435,17 +300,14 @@ LineTouchData get lineTouchData1 => LineTouchData(
       case 0:
         text = '0%';
         break;
-      case 20:
-        text = '20%';
+      case 25:
+        text = '25%';
         break;
-      case 40:
-        text = '40%';
+      case 50:
+        text = '50%';
         break;
-      case 60:
-        text = '60%';
-        break;
-      case 80:
-        text = '80%';
+      case 75:
+        text = '75%';
         break;
       case 100:
         text = '100%';
@@ -453,13 +315,7 @@ LineTouchData get lineTouchData1 => LineTouchData(
       default:
         return Container();
     }
-
-    return Text(text,
-        style: TextStyle(
-          color: TColor.white,
-          fontSize: 12,
-        ),
-        textAlign: TextAlign.center);
+    return Text(text, style: TextStyle(color: TColor.white, fontSize: 12), textAlign: TextAlign.center);
   }
 
   SideTitles get bottomTitles => SideTitles(
@@ -470,10 +326,7 @@ LineTouchData get lineTouchData1 => LineTouchData(
       );
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
-    var style = TextStyle(
-      color: TColor.white,
-      fontSize: 12,
-    );
+    var style = TextStyle(color: TColor.white, fontSize: 12);
     Widget text;
     switch (value.toInt()) {
       case 1:
@@ -501,11 +354,6 @@ LineTouchData get lineTouchData1 => LineTouchData(
         text = const Text('');
         break;
     }
-
-    return SideTitleWidget(
-      space: 10,
-      meta: meta,
-      child: text,
-    );
+    return SideTitleWidget(space: 10, meta: meta, child: text);
   }
 }
