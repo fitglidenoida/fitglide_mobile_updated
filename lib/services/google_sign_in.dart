@@ -8,7 +8,6 @@ class GoogleSignInHelper {
   // Configure GoogleSignIn based on platform
   static GoogleSignIn getGoogleSignIn() {
     return GoogleSignIn(
-      clientId: "535964172976-qq8esq2lvg8olq14dp7o0isldhgf1833.apps.googleusercontent.com", 
       scopes: ['email', 'profile', 'openid'],
     );
   }
