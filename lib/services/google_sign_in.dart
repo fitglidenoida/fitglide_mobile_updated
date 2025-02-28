@@ -1,69 +1,86 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class GoogleSignInHelper {
-  // Create a GoogleSignIn instance based on the platform
+  // Configure GoogleSignIn based on platform
   static GoogleSignIn getGoogleSignIn() {
-    GoogleSignIn googleSignIn;
-
-    if (kIsWeb || Platform.isAndroid) {
-      // Web or Android: No clientId needed, only scopes
-      googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile',],
-      );
-    } else if (Platform.isIOS || Platform.isMacOS) {
-      // iOS or macOS: Specify the clientId
-      googleSignIn = GoogleSignIn(
-        clientId: "535964172976-a4gv0s1stdf99mukbeeq12scp5r04dio.apps.googleusercontent.com",
-        scopes: ['email'],
-      );
-    } else {
-      throw UnsupportedError("This platform is not supported for Google Sign-In");
-    }
-
-    return googleSignIn;
+    return GoogleSignIn(
+      clientId: "535964172976-qq8esq2lvg8olq14dp7o0isldhgf1833.apps.googleusercontent.com", 
+      scopes: ['email', 'profile', 'openid'],
+    );
   }
 
-  // Method to handle Google Sign-In
-  static Future<Map<String, dynamic>?> signInAndFetchUserData() async {
+  // Sign-in and authenticate with Strapi
+  static Future<Map<String, dynamic>?> signInAndFetchUserData
+() async {
     try {
-    final GoogleSignIn googleSignIn = getGoogleSignIn();
-    final GoogleSignInAccount? googleAccount = await googleSignIn.signIn();
+      final GoogleSignIn googleSignIn = getGoogleSignIn();
+      await googleSignIn.signOut(); // Force fresh sign-in
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      if (googleAccount != null) {
-        final String email = googleAccount.email;
-        final String? firstName = googleAccount.displayName?.split(" ").first;
-        final String? photoUrl = googleAccount.photoUrl;
-
-        debugPrint('Google Account Data: email=$email, firstName=$firstName, photoUrl=$photoUrl');
-
-
-        return {
-          'email': email,
-          'firstName': firstName,
-          'photoUrl': photoUrl,
-        };
+      if (googleUser == null) {
+        debugPrint("User canceled the login");
+        return null;
       }
+
+      debugPrint("User signed in: ${googleUser.email}");
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Fetch ID Token manually if missing
+      final String? idToken = googleAuth?.idToken;
+      if (idToken == null) {
+        debugPrint("Failed to retrieve Google ID token.");
+        return null;
+      }
+
+      debugPrint("Google ID Token: $idToken");
+
+      // Authenticate with Strapi
+final String? jwtToken = await authenticateWithStrapi(idToken);
+      if (jwtToken == null) {
+        debugPrint("Failed to authenticate with Strapi.");
+        return null;
+      }
+
+      return {'jwt': jwtToken}; // Return Strapi JWT token
     } catch (e) {
-      print("Error during Google Sign-In: $e");
-    }
-    return null;
-  }
-
-
-
-  // Method to fetch authentication details
-  static Future<GoogleSignInAuthentication?> getAuthentication(
-      GoogleSignInAccount? googleAccount) async {
-    if (googleAccount == null) return null;
-    try {
-      final GoogleSignInAuthentication googleAuthentication =
-          await googleAccount.authentication;
-      return googleAuthentication;
-    } catch (e) {
-      print("Error retrieving Google authentication details: $e");
+      debugPrint("Google Sign-In Error: $e");
       return null;
     }
   }
+
+static Future<String?> authenticateWithStrapi(String idToken, [String strapiUrl = 'https://admin.fitglide.in/api/auth/google/callback']) async {
+  try {
+    final response = await http.post(
+      Uri.parse(strapiUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'access_token': idToken}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['jwt']; 
+    } else {
+      print('Strapi Auth Error: ${response.statusCode} - ${response.body}'); 
+
+      if (response.statusCode == 400) {
+        print("Strapi returned 400 Bad Request. Check Google Token validity.");
+      } else if (response.statusCode == 500) {
+        print("Strapi server error. Check Strapi logs.");
+      }
+
+      return null;
+    }
+  } catch (e) {
+    print('Strapi Auth Exception: $e');
+    return null;
+  }
+}
+
+
+
 }

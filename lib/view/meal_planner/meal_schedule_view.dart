@@ -1,106 +1,93 @@
-import 'package:calendar_agenda/calendar_agenda.dart';
+// lib/view/meal_schedule_view.dart
 import 'package:flutter/material.dart';
-
 import '../../common/colo_extension.dart';
 import '../../common_widget/meal_food_schedule_row.dart';
-import '../../common_widget/nutritions_row.dart';
+import '../../common_widget/custom_calendar.dart';
+import 'package:fitglide_mobile_application/services/api_service.dart';
+import 'package:fitglide_mobile_application/services/user_service.dart';
+import 'package:intl/intl.dart';
 
 class MealScheduleView extends StatefulWidget {
-  const MealScheduleView({super.key});
+  final Map<String, dynamic>? dietPlan;
+
+  const MealScheduleView({super.key, this.dietPlan});
 
   @override
   State<MealScheduleView> createState() => _MealScheduleViewState();
 }
 
 class _MealScheduleViewState extends State<MealScheduleView> {
-  final CalendarAgendaController _calendarAgendaControllerAppBar =
-      CalendarAgendaController();
-
-  late DateTime _selectedDateAppBBar;
-
-  List breakfastArr = [
-    {
-      "name": "Honey Pancake",
-      "time": "07:00am",
-      "image": "assets/img/honey_pan.png"
-    },
-    {"name": "Coffee", "time": "07:30am", "image": "assets/img/coffee.png"},
-  ];
-
-  List lunchArr = [
-    {
-      "name": "Chicken Steak",
-      "time": "01:00pm",
-      "image": "assets/img/chicken.png"
-    },
-    {
-      "name": "Milk",
-      "time": "01:20pm",
-      "image": "assets/img/glass-of-milk 1.png"
-    },
-  ];
-  List snacksArr = [
-    {"name": "Orange", "time": "04:30pm", "image": "assets/img/orange.png"},
-    {
-      "name": "Apple Pie",
-      "time": "04:40pm",
-      "image": "assets/img/apple_pie.png"
-    },
-  ];
-  List dinnerArr = [
-    {"name": "Salad", "time": "07:10pm", "image": "assets/img/salad.png"},
-    {"name": "Oatmeal", "time": "08:10pm", "image": "assets/img/oatmeal.png"},
-  ];
-
-  List nutritionArr = [
-    {
-      "title": "Calories",
-      "image": "assets/img/burn.png",
-      "unit_name": "kCal",
-      "value": "350",
-      "max_value": "500",
-    },
-    {
-      "title": "Proteins",
-      "image": "assets/img/proteins.png",
-      "unit_name": "g",
-      "value": "300",
-      "max_value": "1000",
-    },
-    {
-      "title": "Fats",
-      "image": "assets/img/egg.png",
-      "unit_name": "g",
-      "value": "140",
-      "max_value": "1000",
-    },
-    {
-      "title": "Carbo",
-      "image": "assets/img/carbo.png",
-      "unit_name": "g",
-      "value": "140",
-      "max_value": "1000",
-    },
-  ];
+  DateTime _selectedDate = DateTime.now();
+  late Map<String, dynamic> dietPlan;
+  Map<String, List<Map<String, dynamic>>> groupedMeals = {};
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _selectedDateAppBBar = DateTime.now();
+    _initializeDietPlan();
+  }
+
+  Future<void> _initializeDietPlan() async {
+    debugPrint('Initializing diet plan...');
+    try {
+      if (widget.dietPlan != null && widget.dietPlan!.isNotEmpty) {
+        dietPlan = widget.dietPlan!;
+        debugPrint('Passed diet plan: $dietPlan');
+      } else {
+        final user = await UserService.fetchUserData();
+        final username = user.username;
+        debugPrint('Fetching diet plans for $username');
+        final response = await ApiService.get(
+          'diet-plans?populate=meals.diet_components&filters[users_permissions_user][username][\$eq]=$username',
+        );
+        final plans = response['data'] as List<dynamic>;
+        if (plans.isNotEmpty) {
+          dietPlan = plans.first as Map<String, dynamic>;
+          debugPrint('Fetched diet plan: $dietPlan');
+        } else {
+          throw Exception('No diet plans found for user');
+        }
+      }
+
+      final meals = dietPlan['meals'] as List<dynamic>? ?? [];
+      debugPrint('Meals from diet plan: $meals');
+
+      groupedMeals = _groupMealsByCategory(meals);
+      debugPrint('Grouped meals: $groupedMeals');
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error initializing diet plan: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupMealsByCategory(List<dynamic> meals) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (var meal in meals) {
+      final mealData = meal as Map<String, dynamic>;
+      final category = mealData['name'] as String? ?? 'Unknown';
+      grouped.putIfAbsent(category, () => []).add(mealData);
+    }
+    return grouped;
   }
 
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: TColor.white,
         centerTitle: true,
         elevation: 0,
         leading: InkWell(
-          onTap: () {
-            Navigator.pop(context);
-          },
+          onTap: () => Navigator.pop(context),
           child: Container(
             margin: const EdgeInsets.all(8),
             height: 40,
@@ -108,7 +95,8 @@ class _MealScheduleViewState extends State<MealScheduleView> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
                 color: TColor.lightGray,
-                borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(10),
+            ),
             child: Image.asset(
               "assets/img/black_btn.png",
               width: 15,
@@ -120,7 +108,10 @@ class _MealScheduleViewState extends State<MealScheduleView> {
         title: Text(
           "Meal Schedule",
           style: TextStyle(
-              color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
+            color: TColor.black,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         actions: [
           InkWell(
@@ -132,7 +123,8 @@ class _MealScheduleViewState extends State<MealScheduleView> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                   color: TColor.lightGray,
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Image.asset(
                 "assets/img/more_btn.png",
                 width: 15,
@@ -140,242 +132,160 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                 fit: BoxFit.contain,
               ),
             ),
-          )
+          ),
         ],
       ),
       backgroundColor: TColor.white,
-      body: Column(
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CalendarAgenda(
-            controller: _calendarAgendaControllerAppBar,
-            appbar: false,
-            selectedDayPosition: SelectedDayPosition.center,
-            leading: IconButton(
-                onPressed: () {},
-                icon: Image.asset(
-                  "assets/img/ArrowLeft.png",
-                  width: 15,
-                  height: 15,
-                )),
-            training: IconButton(
-                onPressed: () {},
-                icon: Image.asset(
-                  "assets/img/ArrowRight.png",
-                  width: 15,
-                  height: 15,
-                )),
-            weekDay: WeekDay.short,
-            dayNameFontSize: 12,
-            dayNumberFontSize: 16,
-            dayBGColor: Colors.grey.withOpacity(0.15),
-            titleSpaceBetween: 15,
-            backgroundColor: Colors.transparent,
-            fullCalendarScroll: FullCalendarScroll.horizontal,
-            fullCalendarDay: WeekDay.short,
-            selectedDateColor: Colors.white,
-            dateColor: Colors.black,
-            locale: 'en',
-            initialDate: DateTime.now(),
-            calendarEventColor: TColor.primaryColor2,
-            firstDate: DateTime.now().subtract(const Duration(days: 140)),
-            lastDate: DateTime.now().add(const Duration(days: 60)),
+                Container(
+                  color: TColor.white,
+                  child: CustomCalendar(
             onDateSelected: (date) {
               setState(() {
-                _selectedDateAppBBar = date;
+                        _selectedDate = date;
               });
             },
-            selectedDayLogo: Container(
-              width: double.maxFinite,
-              height: double.maxFinite,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: TColor.primaryG,
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter),
-                borderRadius: BorderRadius.circular(10.0),
-              ),
+                    initialDate: _selectedDate,
             ),
           ),
           Expanded(
               child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "BreakFast",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          "${breakfastArr.length} Items | 230 calories",
-                          style: TextStyle(color: TColor.gray, fontSize: 12),
-                        ),
-                      )
-                    ],
+                      children: _buildMealSections(media),
+                    ),
                   ),
                 ),
-                ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: breakfastArr.length,
-                    itemBuilder: (context, index) {
-                      var mObj = breakfastArr[index] as Map? ?? {};
-                      return MealFoodScheduleRow(
-                        mObj: mObj,
-                        index: index,
-                      );
-                    }),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Lunch",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          "${lunchArr.length} Items | 500 calories",
-                          style: TextStyle(color: TColor.gray, fontSize: 12),
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-                ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: lunchArr.length,
-                    itemBuilder: (context, index) {
-                      var mObj = lunchArr[index] as Map? ?? {};
-                      return MealFoodScheduleRow(
-                        mObj: mObj,
-                        index: index,
-                      );
-                    }),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Snacks",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          "${snacksArr.length} Items | 140 calories",
-                          style: TextStyle(color: TColor.gray, fontSize: 12),
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-                ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: snacksArr.length,
-                    itemBuilder: (context, index) {
-                      var mObj = snacksArr[index] as Map? ?? {};
-                      return MealFoodScheduleRow(
-                        mObj: mObj,
-                        index: index,
-                      );
-                    }),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Dinner",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          "${dinnerArr.length} Items | 120 calories",
-                          style: TextStyle(color: TColor.gray, fontSize: 12),
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-                ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: dinnerArr.length,
-                    itemBuilder: (context, index) {
-                      var mObj = dinnerArr[index] as Map? ?? {};
-                      return MealFoodScheduleRow(
-                        mObj: mObj,
-                        index: index,
-                      );
-                    }),
-                SizedBox(
-                  height: media.width * 0.05,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Today Meal Nutritions",
-                        style: TextStyle(
-                            color: TColor.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                ),
-                ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: nutritionArr.length,
-                    itemBuilder: (context, index) {
-                      var nObj = nutritionArr[index] as Map? ?? {};
-
-                      return NutritionRow(
-                        nObj: nObj,
-                      );
-                    }),
-                SizedBox(
-                  height: media.width * 0.05,
-                )
               ],
             ),
-          ))
-        ],
-      ),
     );
   }
+
+  List<Widget> _buildMealSections(Size media) {
+    final sections = <Widget>[];
+
+    groupedMeals.forEach((category, meals) {
+      final subtotalCalories = meals.fold<int>(
+        0,
+        (sum, meal) => sum + (meal['calculatedCalories'] as int? ?? 0),
+      );
+      sections.add(_buildMealSection(category, meals, "$subtotalCalories calories"));
+    });
+
+    return sections;
+  }
+
+Widget _buildMealSection(String title, List<Map<String, dynamic>> meals, String subtitle) {
+  final components = meals.expand((meal) {
+    final dietComponents = meal['diet_components'] as List<dynamic>? ?? [];
+    debugPrint('Diet components for $title meal: $dietComponents');
+    return dietComponents.map((component) => {
+      'component': component as Map<String, dynamic>,
+      'meal_time': meal['meal_time'] as String? ?? 'N/A',
+    });
+  }).toList();
+
+  debugPrint('Components for $title: $components');
+
+  // Calculate total calories from components with explicit cast
+  final totalCalories = components.fold<int>(
+    0,
+    (sum, componentData) => sum + ((componentData['component'] as Map<String, dynamic>)['calories'] as int? ?? 0),
+  );
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+              title,
+                        style: TextStyle(
+                            color: TColor.black,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+                      ),
+                      TextButton(
+                        onPressed: () {},
+                        child: Text(
+                "${components.length} Items | $totalCalories cal",
+                style: TextStyle(
+                  color: TColor.gray,
+                  fontSize: 14,
+                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+      components.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              child: Text(
+                'No components available',
+                style: TextStyle(color: TColor.gray, fontSize: 14),
+              ),
+            )
+          : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+              itemCount: components.length,
+                    itemBuilder: (context, index) {
+                final componentData = components[index];
+                final mObj = _mapComponentToRowFormat(
+                  componentData['component'] as Map<String, dynamic>,
+                  componentData['meal_time'] as String,
+                );
+                debugPrint('Mapped component: $mObj');
+                return MealFoodScheduleRow(mObj: mObj, index: index);
+              },
+            ),
+    ],
+  );
+}
+
+Map<String, dynamic> _mapComponentToRowFormat(Map<String, dynamic> component, String mealTime) {
+  String timeStr = mealTime;
+  try {
+    final time = DateFormat('HH:mm:ss.SSS').parse(mealTime);
+    timeStr = DateFormat('h a').format(time).toLowerCase();
+  } catch (e) {
+    debugPrint('Error parsing time: $e');
+    timeStr = mealTime;
+  }
+
+  return {
+    'name': component['name'] as String? ?? 'Unnamed Component',
+    'time': timeStr,
+    'calories': component['calories'] as int? ?? 0, // Fetch calories, default to 0 if missing
+    'image': _getImageForMeal(component['food_type'] as String? ?? component['name'] as String? ?? ''),
+  };
+}
+
+  String _getImageForMeal(String name) {
+    switch (name.toLowerCase()) {
+      case 'poha':
+      case 'honey pancake':
+        return 'assets/img/honey_pan.png';
+      case 'chicken steak':
+        return 'assets/img/chicken.png';
+      case 'salad':
+      case 'oatmeal':
+        return 'assets/img/salad.png';
+      case 'orange':
+      case 'apple pie':
+        return 'assets/img/orange.png';
+      default:
+        return 'assets/img/default_meal.png';
+  }
+}
 }

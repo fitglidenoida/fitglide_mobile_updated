@@ -1,11 +1,22 @@
 
 import 'package:fitglide_mobile_application/view/login/login_view.dart';
 import 'package:flutter/material.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'common/colo_extension.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> requestExactAlarmPermission() async {
+  if (await Permission.scheduleExactAlarm.isDenied) {
+    await Permission.scheduleExactAlarm.request();
+  }
+}
+
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await requestExactAlarmPermission();
+  runApp(ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
