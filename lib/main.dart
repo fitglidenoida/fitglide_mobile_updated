@@ -1,6 +1,8 @@
 
+import 'package:fitglide_mobile_application/services/alarm_service.dart';
 import 'package:fitglide_mobile_application/view/login/login_view.dart';
 import 'package:flutter/material.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'common/colo_extension.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -16,6 +18,7 @@ Future<void> requestExactAlarmPermission() async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await requestExactAlarmPermission();
+  // await AlarmService.initNotifications();
   runApp(ProviderScope(child: MyApp()));
 }
 

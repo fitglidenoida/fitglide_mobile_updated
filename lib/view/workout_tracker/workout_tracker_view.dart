@@ -1,12 +1,35 @@
-import 'package:fitglide_mobile_application/common/common.dart';
+import 'package:fitglide_mobile_application/common_widget/icon_title_next_row.dart';
+import 'package:fitglide_mobile_application/common_widget/round_button.dart';
 import 'package:fitglide_mobile_application/services/api_service.dart';
-import 'package:fitglide_mobile_application/view/workout_tracker/exercises_stpe_details.dart';
+import 'package:fitglide_mobile_application/view/main_tab/main_screen.dart';
+import 'package:fitglide_mobile_application/view/meal_planner/meal_schedule_view.dart';
+import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_schedule_view.dart';
+import 'package:fitglide_mobile_application/view/workout_tracker/add_schedule_view.dart';
+import 'package:fitglide_mobile_application/view/workout_tracker/workout_detail_view.dart';
 import 'package:fitglide_mobile_application/view/workout_tracker/workout_schedule_view.dart';
-import '../../common/colo_extension.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../../common_widget/round_button.dart';
-import '../../common_widget/what_train_row.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
+import '../../common/colo_extension.dart';
+
+class ProfileView extends StatelessWidget {
+  const ProfileView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        backgroundColor: TColor.white, // Changed from TColor.white (already correct)
+      ),
+      backgroundColor: TColor.white, // Changed from TColor.white (already correct)
+      body: const Center(
+        child: Text('Profile View - To be implemented', style: TextStyle(color: TColor.black)),
+      ),
+    );
+  }
+}
 
 class WorkoutTrackerView extends StatefulWidget {
   const WorkoutTrackerView({super.key});
@@ -16,344 +39,542 @@ class WorkoutTrackerView extends StatefulWidget {
 }
 
 class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
-  List<Map<String, dynamic>> upcomingWorkouts = [];
-  bool isLoading = true;
-  double todayCompletionPercentage = 0.0;
+  List<Map> workoutArr = [];
+  int selectedTab = 1; // Default to Workout tab (index 1 in MainScreen)
 
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _loadWorkouts();
   }
 
-  Future<void> _fetchData() async {
-    setState(() {
-      isLoading = true;
-    });
+  Future<void> _loadWorkouts() async {
     try {
-      final now = DateTime.now().toLocal();
-      final todayStart = DateTime(now.year, now.month, now.day).toLocal();
-      final response = await ApiService.get(
-          'workout-plans?populate=exercises&filters[scheduled_date][\$gte]=${todayStart.toIso8601String()}&sort[0]=scheduled_date:asc');
-      final scheduledData = response['data'] as List<dynamic>? ?? [];
-
+      final response = await ApiService.get('workout-plans?populate=*');
       setState(() {
-        upcomingWorkouts = scheduledData.map((workout) {
-          final exercises = workout['exercises'] as List<dynamic>? ?? [];
-          final stepsList = exercises.isNotEmpty
-              ? (exercises.first['steps'] as String?)?.split('\n').where((step) => step.trim().isNotEmpty).toList() ?? []
-              : [];
-          final totalTime = exercises.fold<int>(0, (sum, e) => sum + (e['duration'] as int? ?? 0));
-          final totalCalories = exercises.fold<int>(
-              0, (sum, e) => sum + (e['calories_per_minute'] as int? ?? 0) * (e['duration'] as int? ?? 0));
-          final completed = workout['completed'] as bool? ?? false;
-          final scheduledDateStr = workout['scheduled_date'] as String? ?? '';
-          final scheduledDate = stringToDate(scheduledDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",).toLocal();
-          return {
-            "documentId": workout['id'].toString(),
-            "image": "assets/img/what_${(scheduledData.indexOf(workout) % 3) + 1}.png",
-            "title": exercises.isNotEmpty ? (exercises.first['name'] as String? ?? 'Unnamed Exercise') : 'Unnamed Workout',
-            "exercises": "${exercises.length} Exercises",
-            "time": "$totalTime mins",
-            "calories": "$totalCalories kcal",
-            "set": stepsList.map((step) => {
-                  "image": "assets/img/img_${stepsList.indexOf(step) % 2 + 1}.png",
-                  "title": step.trim(),
-                  "value": totalTime > 0 ? '${totalTime ~/ stepsList.length} min' : 'Unknown',
-                }).toList(),
-            "difficulty": exercises.isNotEmpty ? (exercises.first['difficulty'] as String? ?? 'N/A') : 'N/A',
-            "completed": completed,
-            "scheduled_date": dateToString(scheduledDate, formatStr: "dd/MM/yyyy hh:mm aa"),
-          };
-        }).toList();
-
-        final todayWorkouts = scheduledData.where((w) {
-          final scheduledDateStr = w['scheduled_date'] as String? ?? '';
-          final scheduledDate = stringToDate(scheduledDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", ).toLocal();
-          return scheduledDate.isAfter(todayStart) && scheduledDate.isBefore(todayStart.add(const Duration(days: 1)));
-        }).toList();
-        int totalToday = todayWorkouts.length;
-        int completedToday = todayWorkouts.where((w) => w['completed'] == true).length;
-        todayCompletionPercentage = totalToday > 0 ? (completedToday / totalToday) * 100 : 0.0;
-
-        isLoading = false;
-        debugPrint('WorkoutTrackerView - Fetched ${upcomingWorkouts.length} workouts');
+        workoutArr = List<Map>.from(response['data'] ?? []);
       });
     } catch (e) {
-      debugPrint('Error fetching data in WorkoutTrackerView: $e');
-      setState(() {
-        isLoading = false;
-        todayCompletionPercentage = 0.0;
-        upcomingWorkouts = [];
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load workouts: $e')),
+      debugPrint('Error loading workouts: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load workouts: $e')),
+      );
+    }
+  }
+
+  void _onTabTapped(int index) {
+    setState(() {
+      selectedTab = index;
+    });
+    _navigateToTab(index, context);
+  }
+
+  void _navigateToTab(int index, BuildContext context) {
+    switch (index) {
+      case 0: // Home
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
         );
-      }
+        break;
+      case 1: // Workout
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const WorkoutTrackerView()),
+        );
+        break;
+      case 2: // Meal
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MealScheduleView()),
+        );
+        break;
+      case 3: // Sleep
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const SleepScheduleView()),
+        );
+        break;
+      case 4: // Profile
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfileView()),
+        );
+        break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
-    return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: TColor.primaryG)),
-      child: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              backgroundColor: Colors.transparent,
-              centerTitle: true,
-              elevation: 0,
-              leadingWidth: 0,
-              leading: const SizedBox(),
-              expandedHeight: media.width * 0.5,
-              flexibleSpace: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                height: media.width * 0.5,
-                width: double.maxFinite,
-                child: LineChart(
-                  LineChartData(
-                    lineTouchData: lineTouchData1,
-                    lineBarsData: [
-                      LineChartBarData(
-                        isCurved: true,
-                        color: TColor.white,
-                        barWidth: 4,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: true,),
-                        belowBarData: BarAreaData(show: false),
-                        spots: [
-                          const FlSpot(1, 0),
-                          const FlSpot(2, 0),
-                          const FlSpot(3, 0),
-                          FlSpot(4, todayCompletionPercentage.clamp(0, 100)),
-                          const FlSpot(5, 0),
-                          const FlSpot(6, 0),
-                          const FlSpot(7, 0),
+    return Scaffold(
+      backgroundColor: TColor.white, // Changed from Color(0xFF2C2C2C) to white background
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverAppBar(
+                      backgroundColor: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+                      centerTitle: true,
+                      elevation: 0,
+                      leading: InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.all(8),
+                          height: 40,
+                          width: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Image.asset(
+                            "assets/img/black_btn.png",
+                            width: 15,
+                            height: 15,
+                            fit: BoxFit.contain,
+                          ).animate(
+                            effects: [
+                              FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                              ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                              ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                            ],
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        "Workout Tracker",
+                        style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold), // Changed from Colors.white to black
+                      ).animate(
+                        effects: [
+                          FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                          ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                          ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
                         ],
                       ),
-                    ],
-                    minY: 0,
-                    maxY: 100,
-                    titlesData: FlTitlesData(
-                      show: true,
-                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(),
-                      bottomTitles: AxisTitles(sideTitles: bottomTitles),
-                      rightTitles: AxisTitles(sideTitles: rightTitles),
-                    ),
-                    gridData: FlGridData(
-                      show: true,
-                      drawHorizontalLine: true,
-                      horizontalInterval: 25,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (value) {
-                        return FlLine(
-                          color: TColor.white.withOpacity(0.15),
-                          strokeWidth: 2,
-                        );
-                      },
-                    ),
-                    borderData: FlBorderData(
-                      show: true,
-                      border: Border.all(color: Colors.transparent),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ];
-        },
-        body: Material( // Ensure Material widget for proper theming
-          color: TColor.white,
-          borderRadius: const BorderRadius.only(topLeft: Radius.circular(25), topRight: Radius.circular(25)),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 10),
-                        Container(
-                          width: 50,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              color: TColor.gray.withOpacity(0.3), borderRadius: BorderRadius.circular(3)),
-                        ),
-                        SizedBox(height: media.width * 0.05),
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-                          decoration: BoxDecoration(
-                            color: TColor.primaryColor2.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(15),
+                      actions: [
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => AddScheduleView(date: DateTime.now())),
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(8),
+                            height: 40,
+                            width: 40,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Image.asset(
+                              "assets/img/more_btn.png",
+                              width: 15,
+                              height: 15,
+                              fit: BoxFit.contain,
+                            ).animate(
+                              effects: [
+                                FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                              ],
+                            ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Daily Workout Schedule",
-                                style: TextStyle(
-                                    color: TColor.black, fontSize: 14, fontWeight: FontWeight.w700),
-                              ),
-                              SizedBox(
-                                width: 75,
-                                height: 30,
-                                child: RoundButton(
-                                  title: "Check",
-                                  type: RoundButtonType.bgGradient,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => const WorkoutScheduleView(),
-                                      ),
-                                    ).then((_) => _fetchData());
-                                  },
-                                ),
+                        )
+                      ],
+                    ),
+                    SliverToBoxAdapter(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        color: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Today, ${DateTime.now().day} ${DateFormat('MMMM').format(DateTime.now())}",
+                              style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w500), // Changed from Colors.white to black
+                            ).animate(
+                              effects: [
+                                FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(20, 0), end: Offset(0, 0)),
+                                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                              ],
+                            ),
+                            Text(
+                              "0/0 Completed",
+                              style: TextStyle(color: TColor.gray, fontSize: 14), // Changed from Colors.white70 to gray
+                            ).animate(
+                              effects: [
+                                FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(20, 0), end: Offset(0, 0)),
+                                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ];
+                },
+                body: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  color: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+                  child: Column(
+                    children: [
+                      SizedBox(height: media.width * 0.05),
+                      Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                          borderRadius: BorderRadius.circular(15),
+                          gradient: LinearGradient(
+                            colors: TColor.primaryG, // Using TColor.primaryG for gradient [lightGray, darkRose]
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Weekly Progress",
+                              style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Changed from Colors.white to black
+                            ).animate(
+                              effects: [
+                                FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(20, 0), end: Offset(0, 0)),
+                                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                              ],
+                            ),
+                            Icon(Icons.arrow_forward_ios, color: TColor.darkRose, size: 16), // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                          ],
+                        ),
+                      ).animate(
+                        effects: [
+                          FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                          ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                          ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                        ],
+                      ),
+                      SizedBox(height: media.width * 0.05),
+                      SizedBox(
+                        height: media.width * 0.4,
+                        child: LineChart(
+                          LineChartData(
+                            gridData: FlGridData(show: false),
+                            titlesData: FlTitlesData(show: false),
+                            borderData: FlBorderData(show: false),
+                            minX: 0,
+                            maxX: 7,
+                            minY: 0,
+                            maxY: 100,
+                            lineBarsData: [
+                              LineChartBarData(
+                                spots: [
+                                  FlSpot(0, 20),
+                                  FlSpot(1, 40),
+                                  FlSpot(2, 60),
+                                  FlSpot(3, 50),
+                                  FlSpot(4, 70),
+                                  FlSpot(5, 80),
+                                  FlSpot(6, 90),
+                                ],
+                                isCurved: true,
+                                color: TColor.lightIndigo, // Changed from Color(0xFF4A6D4A) to TColor.lightIndigo
+                                dotData: FlDotData(show: false),
+                                belowBarData: BarAreaData(show: false),
                               ),
                             ],
                           ),
                         ),
-                        SizedBox(height: media.width * 0.05),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "Upcoming Workouts",
-                              style: TextStyle(
-                                  color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
+                      ).animate(
+                        effects: [
+                          FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
+                          ScaleEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                          ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
+                        ],
+                      ),
+                      SizedBox(height: media.width * 0.05),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Workouts",
+                            style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Changed from Colors.white to black
+                          ).animate(
+                            effects: [
+                              FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                              SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(20, 0), end: Offset(0, 0)),
+                              ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                            ],
+                          ),
+                          TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              "${workoutArr.length} Items",
+                              style: TextStyle(color: TColor.gray, fontSize: 14), // Changed from Colors.white70 to gray
+                            ).animate(
+                              effects: [
+                                FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                              ],
                             ),
-                            if (upcomingWorkouts.isEmpty)
-                              Text(
-                                "No upcoming workouts",
-                                style: TextStyle(color: TColor.gray, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: workoutArr.length,
+                          itemBuilder: (context, index) {
+                            var wObj = workoutArr[index] as Map<String, dynamic>? ?? {};
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Changed from Color(0xFF8B4B4B) to TColor.darkRose
                               ),
+                              child: Row(
+                                children: [
+                                  Image.asset(
+                                    wObj["image"] ?? "assets/img/img_1.png",
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(Icons.error, color: TColor.gray); // Changed from Colors.white70 to gray
+                                    },
+                                  ).animate(
+                                    effects: [
+                                      FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                      ScaleEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                      ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 15),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          wObj["title"] ?? 'Unnamed Workout',
+                                          style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Changed from Colors.white to black
+                                        ).animate(
+                                          effects: [
+                                            FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                            SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(10, 0), end: Offset(0, 0)),
+                                            ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                          ],
+                                        ),
+                                        Text(
+                                          "${wObj["time"] ?? 'N/A'} | ${wObj["calories"] ?? 'N/A'} Calories Burn",
+                                          style: TextStyle(color: TColor.gray, fontSize: 14), // Changed from Colors.white70 to gray
+                                        ).animate(
+                                          effects: [
+                                            FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                            SlideEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(10, 0), end: Offset(0, 0)),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => WorkoutDetailView(dObj: wObj),
+                                        ),
+                                      );
+                                    },
+                                    child: Icon(Icons.arrow_forward_ios, color: TColor.lightIndigo, size: 16), // Changed from Color(0xFF4A6D4A) to TColor.lightIndigo
+                                  ).animate(
+                                    effects: [
+                                      FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                      ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                      ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ).animate(
+                          effects: [
+                            FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
+                            SlideEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0, 20), end: Offset(0, 0)),
+                            ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
                           ],
                         ),
-                        SizedBox(height: media.width * 0.02),
-                        if (upcomingWorkouts.isNotEmpty)
-                          ListView.builder(
-                            padding: EdgeInsets.zero,
-                            physics: const NeverScrollableScrollPhysics(),
-                            shrinkWrap: true,
-                            itemCount: upcomingWorkouts.length,
-                            itemBuilder: (context, index) {
-                              var wObj = upcomingWorkouts[index];
-                              return InkWell(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ExercisesStepDetails(
-                                        eObj: wObj,
-                                        documentId: wObj['documentId'],
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: WhatTrainRow(wObj: wObj),
-                              );
-                            },
-                          ),
-                        SizedBox(height: media.width * 0.1),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-          ),
+                ),
+              ),
+            ),
+            // Add bottom navigation bar
+            BottomNavigationBar(
+              currentIndex: selectedTab,
+              onTap: _onTabTapped,
+              items: [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined, size: 28).animate(
+                    target: selectedTab == 0 ? 1.0 : 0.0,
+                    effects: [
+                      ScaleEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                        begin: Offset(1.0, 1.0),
+                        end: Offset(1.2, 1.2),
+                      ),
+                      FadeEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  activeIcon: Icon(Icons.home, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                    effects: [
+                      FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
+                      ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  label: "Home",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.fitness_center_outlined, size: 28).animate(
+                    target: selectedTab == 1 ? 1.0 : 0.0,
+                    effects: [
+                      ScaleEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                        begin: Offset(1.0, 1.0),
+                        end: Offset(1.2, 1.2),
+                      ),
+                      FadeEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  activeIcon: Icon(Icons.fitness_center, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                    effects: [
+                      FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
+                      ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  label: "Workout",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.restaurant_menu, size: 28).animate(
+                    target: selectedTab == 2 ? 1.0 : 0.0,
+                    effects: [
+                      ScaleEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                        begin: Offset(1.0, 1.0),
+                        end: Offset(1.2, 1.2),
+                      ),
+                      FadeEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  activeIcon: Icon(Icons.restaurant, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                    effects: [
+                      FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
+                      ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  label: "Meal",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.bedtime, size: 28).animate(
+                    target: selectedTab == 3 ? 1.0 : 0.0,
+                    effects: [
+                      ScaleEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                        begin: Offset(1.0, 1.0),
+                        end: Offset(1.2, 1.2),
+                      ),
+                      FadeEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  activeIcon: Icon(Icons.nightlight_round, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                    effects: [
+                      FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
+                      ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  label: "Sleep",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline, size: 28).animate(
+                    target: selectedTab == 4 ? 1.0 : 0.0,
+                    effects: [
+                      ScaleEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                        begin: Offset(1.0, 1.0),
+                        end: Offset(1.2, 1.2),
+                      ),
+                      FadeEffect(
+                        duration: 400.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  activeIcon: Icon(Icons.person, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                    effects: [
+                      FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
+                      ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
+                      ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
+                    ],
+                  ),
+                  label: "Profile",
+                ),
+              ],
+              selectedItemColor: TColor.darkRose, // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+              unselectedItemColor: TColor.gray, // Changed from Colors.white70 to gray
+              backgroundColor: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+              elevation: 0, // Remove elevation to avoid white strip
+              type: BottomNavigationBarType.fixed,
+              selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColor.darkRose), // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+              unselectedLabelStyle: TextStyle(fontSize: 14, color: TColor.gray), // Changed from Colors.white70 to gray
+            ).animate(
+              effects: [
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.95, 0.95), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+              ],
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  LineTouchData get lineTouchData1 => LineTouchData(
-        handleBuiltInTouches: true,
-        touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (LineBarSpot touchedSpot) => TColor.primaryColor2.withOpacity(0.8),
-          tooltipRoundedRadius: 10,
-          tooltipPadding: const EdgeInsets.all(8),
-          getTooltipItems: (List<LineBarSpot> touchedSpots) {
-            return touchedSpots.map((spot) {
-              return LineTooltipItem(
-                '${spot.y.toStringAsFixed(1)}%',
-                TextStyle(color: TColor.black, fontSize: 12),
-              );
-            }).toList();
-          },
-        ),
-      );
-
-  SideTitles get rightTitles => SideTitles(
-        getTitlesWidget: rightTitleWidgets,
-        showTitles: true,
-        interval: 25,
-        reservedSize: 40,
-      );
-
-  Widget rightTitleWidgets(double value, TitleMeta meta) {
-    String text;
-    switch (value.toInt()) {
-      case 0:
-        text = '0%';
-        break;
-      case 25:
-        text = '25%';
-        break;
-      case 50:
-        text = '50%';
-        break;
-      case 75:
-        text = '75%';
-        break;
-      case 100:
-        text = '100%';
-        break;
-      default:
-        return Container();
-    }
-    return Text(text, style: TextStyle(color: TColor.white, fontSize: 12), textAlign: TextAlign.center);
-  }
-
-  SideTitles get bottomTitles => SideTitles(
-        showTitles: true,
-        reservedSize: 32,
-        interval: 1,
-        getTitlesWidget: bottomTitleWidgets,
-      );
-
-  Widget bottomTitleWidgets(double value, TitleMeta meta) {
-    var style = TextStyle(color: TColor.white, fontSize: 12);
-    Widget text;
-    switch (value.toInt()) {
-      case 1:
-        text = Text('Sun', style: style);
-        break;
-      case 2:
-        text = Text('Mon', style: style);
-        break;
-      case 3:
-        text = Text('Tue', style: style);
-        break;
-      case 4:
-        text = Text('Wed', style: style);
-        break;
-      case 5:
-        text = Text('Thu', style: style);
-        break;
-      case 6:
-        text = Text('Fri', style: style);
-        break;
-      case 7:
-        text = Text('Sat', style: style);
-        break;
-      default:
-        text = const Text('');
-        break;
-    }
-    return SideTitleWidget(space: 10, meta: meta, child: text);
   }
 }

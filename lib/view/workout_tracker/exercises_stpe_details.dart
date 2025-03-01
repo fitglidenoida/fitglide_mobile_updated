@@ -1,278 +1,275 @@
 import 'package:fitglide_mobile_application/services/api_service.dart';
-import 'package:fitglide_mobile_application/view/home/finished_workout_view.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:readmore/readmore.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../common/colo_extension.dart';
-import '../../common_widget/round_button.dart';
-import '../../common_widget/step_detail_row.dart';
 
 class ExercisesStepDetails extends StatefulWidget {
-  final Map<String, dynamic> eObj;
-  final String documentId;
+  final Map exercise;
 
-  const ExercisesStepDetails({super.key, required this.eObj, required this.documentId});
+  const ExercisesStepDetails({super.key, required this.exercise});
 
   @override
   State<ExercisesStepDetails> createState() => _ExercisesStepDetailsState();
 }
 
-class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
-  List<Map<String, dynamic>> stepArr = [];
+class _ExercisesStepDetailsState extends State<ExercisesStepDetails> with SingleTickerProviderStateMixin {
+  Map? stravaData;
+  bool isFavorited = false;
+  int badgesEarned = 0;
+  late AnimationController _controller;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _initializeSteps();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..forward();
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _loadStravaData();
+    _loadBadges();
   }
 
-  void _initializeSteps() {
-    stepArr = (widget.eObj["set"] as List<dynamic>? ?? []).map((step) => {
-          "image": "assets/img/img_${(stepArr.length % 2) + 1}.png",
-          "title": step['title']?.toString() ?? step.toString().trim(),
-          "value": step['value']?.toString() ?? 'Unknown',
-        }).toList();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStravaData() async {
+    try {
+      // Create a DataService instance to call fetchStravaData
+      final dataService = DataService();
+      final stravaResponse = await dataService.fetchStravaData('username'); // Replace with actual username
+      if (stravaResponse['data'] != null && (stravaResponse['data'] as List).isNotEmpty) {
+        setState(() {
+          stravaData = (stravaResponse['data'] as List).firstWhere((d) => d['sport_type'] == widget.exercise['sport_type'], orElse: () => null) as Map?;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading Strava data: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load Strava data: $e', style: TextStyle(color: TColor.black))),
+      );
+    }
+  }
+
+  Future<void> _loadBadges() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      badgesEarned = (prefs.getStringList('badges') ?? []).length;
+    });
+  }
+
+  Future<void> _toggleFavorite() async {
+    setState(() => isFavorited = !isFavorited);
+    final prefs = await SharedPreferences.getInstance();
+    final favorites = prefs.getStringList('favorites') ?? [];
+    if (isFavorited) {
+      favorites.add(widget.exercise['name']);
+    } else {
+      favorites.remove(widget.exercise['name']);
+    }
+    await prefs.setStringList('favorites', favorites);
+    if (isFavorited) {
+      setState(() => badgesEarned++);
+      await prefs.setStringList('badges', [...prefs.getStringList('badges') ?? [], 'Exercise Favorited: ${widget.exercise['name']}']);
+    }
+  }
+
+  void _shareExercise() {
+    final String text = 'Completed ${widget.exercise['name']} - Duration: ${widget.exercise['duration']} min, Calories: ${widget.exercise['calories_per_minute']} kcal';
+    Share.share(text);
   }
 
   @override
   Widget build(BuildContext context) {
-    var media = MediaQuery.of(context).size;
-
     return Scaffold(
+      backgroundColor: TColor.white, // Clean white background
       appBar: AppBar(
-        backgroundColor: TColor.white,
-        centerTitle: true,
-        elevation: 0,
-        leading: InkWell(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            height: 40,
-            width: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: TColor.lightGray,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Image.asset(
-              "assets/img/closed_btn.png",
-              width: 15,
-              height: 15,
-              fit: BoxFit.contain,
-            ),
-          ),
+        title: Text(widget.exercise['name'] ?? 'Exercise Details', style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold)),
+        backgroundColor: TColor.white, // White
+        elevation: 0, // No shadow for modern look
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios, color: TColor.black), // Black
+          onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          InkWell(
-            onTap: () {},
-            child: Container(
-              margin: const EdgeInsets.all(8),
-              height: 40,
-              width: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: TColor.lightGray,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Image.asset(
-                "assets/img/more_btn.png",
-                width: 15,
-                height: 15,
-                fit: BoxFit.contain,
-              ),
-            ),
+          IconButton(
+            icon: Icon(isFavorited ? Icons.favorite : Icons.favorite_border, color: TColor.darkRose), // Darker dusty rose
+            onPressed: _toggleFavorite,
+          ),
+          IconButton(
+            icon: Icon(Icons.share, color: TColor.darkRose), // Darker dusty rose
+            onPressed: _shareExercise,
           ),
         ],
       ),
-      backgroundColor: TColor.white,
       body: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: media.width,
-                    height: media.width * 0.43,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: TColor.primaryG),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Image.asset(
-                      widget.eObj["image"] ?? "assets/img/video_temp.png",
-                      width: media.width,
-                      height: media.width * 0.43,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Image.asset(
-                          "assets/img/video_temp.png",
-                          width: media.width,
-                          height: media.width * 0.43,
-                          fit: BoxFit.contain,
-                        );
-                      },
-                    ),
-                  ),
-                  Container(
-                    width: media.width,
-                    height: media.width * 0.43,
-                    decoration: BoxDecoration(
-                      color: TColor.black.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      // Add video playback logic here
-                      debugPrint('Video playback triggered for ${widget.eObj["title"]}');
-                    },
-                    icon: Image.asset(
-                      "assets/img/Play.png",
-                      width: 30,
-                      height: 30,
-                    ),
-                  ),
-                ],
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray with subtle gradient
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                gradient: LinearGradient(
+                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              const SizedBox(height: 15),
-              Text(
-                widget.eObj["title"].toString(),
-                style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "${widget.eObj["difficulty"] ?? 'Easy'} | ${widget.eObj["calories"] ?? 'N/A'} Calories Burn",
-                style: TextStyle(color: TColor.gray, fontSize: 12),
-              ),
-              const SizedBox(height: 15),
-              Text(
-                "Descriptions",
-                style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              ReadMoreText(
-                widget.eObj['description']?.toString() ?? 'Description not available.',
-                trimLines: 4,
-                colorClickableText: TColor.black,
-                trimMode: TrimMode.Line,
-                trimCollapsedText: ' Read More ...',
-                trimExpandedText: ' Read Less',
-                style: TextStyle(color: TColor.gray, fontSize: 12),
-                moreStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "How To Do It",
-                    style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
+                    'Exercise Details',
+                    style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text(
-                      "${stepArr.length} Sets",
-                      style: TextStyle(color: TColor.gray, fontSize: 12),
-                    ),
+                  SizedBox(height: 15),
+                  Text('Sport Type: ${widget.exercise['sport_type'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Duration: ${widget.exercise['duration'] ?? 'N/A'} min', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Calories/Min: ${widget.exercise['calories_per_minute'] ?? 'N/A'} kcal', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  if (widget.exercise['sport_type'] == 'Gym')
+                    Text('Reps: ${widget.exercise['reps'] ?? 'N/A'}, Sets: ${widget.exercise['sets'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Steps:', style: TextStyle(color: TColor.black, fontSize: 18, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 10),
+                  Text(
+                    '1. Warm up with 5-min stretches.\n2. Perform ${widget.exercise['duration']} min of ${widget.exercise['name']}.\n3. Cool down with 5-min breathing exercises.',
+                    style: TextStyle(color: TColor.black, fontSize: 16),
                   ),
                 ],
               ),
-              ListView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                itemCount: stepArr.length,
-                itemBuilder: (context, index) {
-                  var sObj = stepArr[index] as Map? ?? {};
-                  return StepDetailRow(
-                    sObj: sObj,
-                    isLast: index == stepArr.length - 1,
-                  );
-                },
-              ),
-              const SizedBox(height: 15),
-              Text(
-                "Custom Repetitions",
-                style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              SizedBox(
-                height: 150,
-                child: CupertinoPicker.builder(
-                  itemExtent: 40,
-                  selectionOverlay: Container(
-                    width: double.maxFinite,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: TColor.gray.withOpacity(0.2), width: 1),
-                        bottom: BorderSide(color: TColor.gray.withOpacity(0.2), width: 1),
-                      ),
-                    ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Strava Performance',
+              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 15),
+            if (stravaData != null)
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: TColor.lightGray, // Light gray
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                  gradient: LinearGradient(
+                    colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  onSelectedItemChanged: (index) {
-                    setState(() {
-                      // Update widget.eObj with custom repetitions if needed
-                      widget.eObj['repetitions'] = (index + 1) * 15;
-                    });
-                  },
-                  childCount: 60,
-                  itemBuilder: (context, index) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          "assets/img/burn.png",
-                          width: 15,
-                          height: 15,
-                          fit: BoxFit.contain,
-                        ),
-                        Text(
-                          " ${(index + 1) * 15} Calories Burn",
-                          style: TextStyle(color: TColor.gray, fontSize: 10),
-                        ),
-                        Text(
-                          " ${index + 1} ",
-                          style: TextStyle(color: TColor.gray, fontSize: 24, fontWeight: FontWeight.w500),
-                        ),
-                        Text(
-                          " times",
-                          style: TextStyle(color: TColor.gray, fontSize: 16),
-                        ),
-                      ],
-                    );
-                  },
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Distance: ${stravaData?['distance'] ?? 'N/A'} km', style: TextStyle(color: TColor.black, fontSize: 16)),
+                    Text('Elevation: ${stravaData?['total_elevation_gain'] ?? 'N/A'} m', style: TextStyle(color: TColor.black, fontSize: 16)),
+                    Text('Heart Rate: ${stravaData?['heart_rate'] ?? 'N/A'} BPM', style: TextStyle(color: TColor.black, fontSize: 16)),
+                    Text('Cadence: ${stravaData?['cadence'] ?? 'N/A'} rpm', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  ],
+                ),
+              ).animate(
+                effects: [
+                  FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                  ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                  ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                ],
+              )
+            else
+              Text('No Strava data available', style: TextStyle(color: TColor.gray, fontSize: 16)),
+            SizedBox(height: 20),
+            Text(
+              'Gamification',
+              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                gradient: LinearGradient(
+                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
-              if (!(widget.eObj["completed"] as bool? ?? false))
-                RoundButton(
-                  title: "Finish",
-                  elevation: 0,
-                  onPressed: () async {
-                    try {
-                      debugPrint('Attempting to update workout with documentId: ${widget.documentId}');
-                      final response = await ApiService.updateWorkoutPlan(widget.documentId, {'completed': true});
-                      debugPrint('Update response: $response');
-                      if (mounted) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => const FinishedWorkoutView()),
-                        );
-                      }
-                    } catch (e) {
-                      debugPrint('Error finishing workout: $e');
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to finish workout: $e')),
-                        );
-                      }
-                    }
-                  },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Badges Earned: $badgesEarned', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Level Up by completing more exercises!', style: TextStyle(color: TColor.black, fontSize: 16)),
+                ],
+              ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 20),
+            Text(
+              'AI Insights',
+              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                gradient: LinearGradient(
+                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              const SizedBox(height: 15),
-            ],
-          ),
+              ),
+              child: Text(
+                'Boost performance by increasing reps by 10% for ${widget.exercise['name']}. Sync Strava for real-time feedback.',
+                style: TextStyle(color: TColor.black, fontSize: 16),
+              ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+          ],
         ),
       ),
     );

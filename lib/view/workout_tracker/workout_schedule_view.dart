@@ -1,302 +1,275 @@
-import 'package:fitglide_mobile_application/common_widget/custom_calendar.dart';
-import 'package:flutter/material.dart';
 import 'package:fitglide_mobile_application/services/api_service.dart';
-import 'dart:convert';
-import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../common/colo_extension.dart';
-import '../../common/common.dart';
-import 'add_schedule_view.dart';
-import '../workout_tracker/workout_detail_view.dart';
 
-class WorkoutScheduleView extends StatefulWidget {
-  const WorkoutScheduleView({super.key});
+class ExercisesStepDetails extends StatefulWidget {
+  final Map exercise;
+
+  const ExercisesStepDetails({super.key, required this.exercise});
 
   @override
-  State<WorkoutScheduleView> createState() => _WorkoutScheduleViewState();
+  State<ExercisesStepDetails> createState() => _ExercisesStepDetailsState();
 }
 
-class _WorkoutScheduleViewState extends State<WorkoutScheduleView> {
-  DateTime _selectedDate = DateTime.now().toLocal();
-  List<Map<String, dynamic>> eventArr = [];
-  List<Map<String, dynamic>> selectDayEventArr = [];
-  bool isLoading = true;
+class _ExercisesStepDetailsState extends State<ExercisesStepDetails> with SingleTickerProviderStateMixin {
+  Map? stravaData;
+  bool isFavorited = false;
+  int badgesEarned = 0;
+  late AnimationController _controller;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _fetchWorkouts();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..forward();
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _loadStravaData();
+    _loadBadges();
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _fetchWorkouts();
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  Future<void> _fetchWorkouts() async {
+  Future<void> _loadStravaData() async {
     try {
-      List<Map<String, dynamic>> allWorkouts = [];
-      int page = 1;
-      const int pageSize = 100;
-      bool hasMore = true;
-
-      while (hasMore) {
-        final response = await ApiService.get(
-          'workout-plans?populate=*&pagination[page]=$page&pagination[pageSize]=$pageSize',
-        );
-        final workoutData = response['data'] as List<dynamic>? ?? [];
-        allWorkouts.addAll(workoutData.map((e) => Map<String, dynamic>.from(e as Map)));
-
-        final meta = response['meta'] as Map<String, dynamic>? ?? {};
-        final pagination = meta['pagination'] as Map<String, dynamic>? ?? {};
-        final total = pagination['total'] as int? ?? 0;
-        final fetched = allWorkouts.length;
-        hasMore = fetched < total;
-        page++;
-
-        // Prevent infinite loop with a maximum page limit
-        if (page > 10) {
-          debugPrint('Reached pagination limit, stopping fetch');
-          break;
-        }
+      // Create a DataService instance to call fetchStravaData
+      final dataService = DataService();
+      final stravaResponse = await dataService.fetchStravaData('username'); // Replace with actual username
+      if (stravaResponse['data'] != null && (stravaResponse['data'] as List).isNotEmpty) {
+        setState(() {
+          stravaData = (stravaResponse['data'] as List).firstWhere((d) => d['sport_type'] == widget.exercise['sport_type'], orElse: () => null) as Map?;
+        });
       }
-
-      setState(() {
-        eventArr = allWorkouts.map((workout) {
-          final scheduledDateStr = workout['scheduled_date'] as String? ?? '';
-          final scheduledDate = stringToDate(scheduledDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", ).toLocal();
-          final formatter = DateFormat('dd/MM/yyyy hh:mm aa');
-          return {
-            "name": workout['Title'] as String? ?? 'Untitled',
-            "start_time": formatter.format(scheduledDate),
-            "date": scheduledDate,
-            "documentId": workout['id'].toString(),
-            "workout": Map<String, dynamic>.from(workout),
-          };
-        }).toList();
-        debugPrint('Event count: ${eventArr.length}');
-        setDayEventWorkoutList();
-        isLoading = false;
-      });
     } catch (e) {
-      debugPrint('Error fetching workouts: $e');
-      setState(() {
-        isLoading = false;
-        eventArr = [];
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load workouts: $e')),
-        );
-      }
+      debugPrint('Error loading Strava data: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load Strava data: $e', style: TextStyle(color: TColor.black))),
+      );
     }
   }
 
-  void setDayEventWorkoutList() {
-    final date = dateToStartDate(_selectedDate);
-    selectDayEventArr = eventArr.where((wObj) {
-      final eventDate = wObj["date"] as DateTime;
-      final isSameDay = dateToStartDate(eventDate) == date;
-      return isSameDay;
-    }).toList();
-    selectDayEventArr.sort((a, b) => (a["date"] as DateTime).compareTo(b["date"] as DateTime));
-    if (mounted) {
-      setState(() {});
-    }
-    debugPrint('Selected day events: ${selectDayEventArr.length} for ${_selectedDate.toIso8601String()}');
+  Future<void> _loadBadges() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      badgesEarned = (prefs.getStringList('badges') ?? []).length;
+    });
   }
 
-  String getTime(int minutes) {
-    final hour = minutes ~/ 60;
-    final min = minutes % 60;
-    return '${hour.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+  Future<void> _toggleFavorite() async {
+    setState(() => isFavorited = !isFavorited);
+    final prefs = await SharedPreferences.getInstance();
+    final favorites = prefs.getStringList('favorites') ?? [];
+    if (isFavorited) {
+      favorites.add(widget.exercise['name']);
+    } else {
+      favorites.remove(widget.exercise['name']);
+    }
+    await prefs.setStringList('favorites', favorites);
+    if (isFavorited) {
+      setState(() => badgesEarned++);
+      await prefs.setStringList('badges', [...prefs.getStringList('badges') ?? [], 'Exercise Favorited: ${widget.exercise['name']}']);
+    }
+  }
+
+  void _shareExercise() {
+    final String text = 'Completed ${widget.exercise['name']} - Duration: ${widget.exercise['duration']} min, Calories: ${widget.exercise['calories_per_minute']} kcal';
+    Share.share(text);
   }
 
   @override
   Widget build(BuildContext context) {
-    var media = MediaQuery.of(context).size;
     return Scaffold(
+      backgroundColor: TColor.white, // Clean white background
       appBar: AppBar(
-        backgroundColor: TColor.white,
-        centerTitle: true,
-        elevation: 0,
-        leading: InkWell(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            height: 40,
-            width: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: TColor.lightGray,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Image.asset(
-              "assets/img/black_btn.png",
-              width: 15,
-              height: 15,
-              fit: BoxFit.contain,
-            ),
-          ),
-        ),
-        title: Text(
-          "Workout Schedule",
-          style: TextStyle(
-            color: TColor.black,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+        title: Text(widget.exercise['name'] ?? 'Exercise Details', style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold)),
+        backgroundColor: TColor.white, // White
+        elevation: 0, // No shadow for modern look
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios, color: TColor.black), // Black
+          onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          InkWell(
-            onTap: () {},
-            child: Container(
-              margin: const EdgeInsets.all(8),
-              height: 40,
-              width: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: TColor.lightGray,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Image.asset(
-                "assets/img/more_btn.png",
-                width: 15,
-                height: 15,
-                fit: BoxFit.contain,
-              ),
-            ),
+          IconButton(
+            icon: Icon(isFavorited ? Icons.favorite : Icons.favorite_border, color: TColor.darkRose), // Darker dusty rose
+            onPressed: _toggleFavorite,
+          ),
+          IconButton(
+            icon: Icon(Icons.share, color: TColor.darkRose), // Darker dusty rose
+            onPressed: _shareExercise,
           ),
         ],
       ),
-      backgroundColor: TColor.white,
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                CustomCalendar(
-                  onDateSelected: (date) {
-                    setState(() {
-                      _selectedDate = date;
-                      setDayEventWorkoutList();
-                    });
-                  },
-                  initialDate: _selectedDate,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray with subtle gradient
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                gradient: LinearGradient(
+                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: media.width * 1.5,
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemBuilder: (context, index) {
-                          final double padding = 80 + 40;
-                          final double availWidth = media.width * 1.2 - padding;
-
-                          final slotArr = selectDayEventArr.where((wObj) {
-                            final eventDate = wObj["date"] as DateTime;
-                            return eventDate.hour == index;
-                          }).toList();
-
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            height: 40,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  width: 80,
-                                  child: Text(
-                                    getTime(index * 60),
-                                    style: TextStyle(
-                                      color: TColor.black,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                if (slotArr.isNotEmpty)
-                                  Expanded(
-                                    child: Stack(
-                                      alignment: Alignment.centerLeft,
-                                      children: slotArr.map((sObj) {
-                                        final eventDate = sObj["date"] as DateTime;
-                                        final min = eventDate.minute;
-                                        final pos = (min / 60) * 2 - 1;
-
-                                        return Align(
-                                          alignment: Alignment(pos, 0),
-                                          child: InkWell(
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => WorkoutDetailView(
-                                                    dObj: Map<String, dynamic>.from(sObj["workout"] as Map),
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            child: Container(
-                                              height: 35,
-                                              width: availWidth * 0.5,
-                                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                                              alignment: Alignment.centerLeft,
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(colors: TColor.secondaryG),
-                                                borderRadius: BorderRadius.circular(17.5),
-                                              ),
-                                              child: Text(
-                                                "${sObj["name"]}, ${getStringDateToOtherFormate(sObj["start_time"] as String, outFormatStr: "h:mm aa")}",
-                                                maxLines: 1,
-                                                style: TextStyle(color: TColor.white, fontSize: 12),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                        separatorBuilder: (context, index) => Divider(
-                          color: TColor.gray.withOpacity(0.2),
-                          height: 1,
-                        ),
-                        itemCount: 24,
-                      ),
-                    ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Exercise Details',
+                    style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                ),
+                  SizedBox(height: 15),
+                  Text('Sport Type: ${widget.exercise['sport_type'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Duration: ${widget.exercise['duration'] ?? 'N/A'} min', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Calories/Min: ${widget.exercise['calories_per_minute'] ?? 'N/A'} kcal', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  if (widget.exercise['sport_type'] == 'Gym')
+                    Text('Reps: ${widget.exercise['reps'] ?? 'N/A'}, Sets: ${widget.exercise['sets'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Steps:', style: TextStyle(color: TColor.black, fontSize: 18, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 10),
+                  Text(
+                    '1. Warm up with 5-min stretches.\n2. Perform ${widget.exercise['duration']} min of ${widget.exercise['name']}.\n3. Cool down with 5-min breathing exercises.',
+                    style: TextStyle(color: TColor.black, fontSize: 16),
+                  ),
+                ],
+              ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
               ],
             ),
-      floatingActionButton: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddScheduleView(date: _selectedDate),
+            SizedBox(height: 20),
+            Text(
+              'Strava Performance',
+              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
             ),
-          ).then((_) => _fetchWorkouts());
-        },
-        child: Container(
-          width: 55,
-          height: 55,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: TColor.secondaryG),
-            borderRadius: BorderRadius.circular(27.5),
-            boxShadow: const [
-              BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            Icons.add,
-            size: 20,
-            color: TColor.white,
-          ),
+            SizedBox(height: 15),
+            if (stravaData != null)
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: TColor.lightGray, // Light gray
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                  gradient: LinearGradient(
+                    colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Distance: ${stravaData?['distance'] ?? 'N/A'} km', style: TextStyle(color: TColor.black, fontSize: 16)),
+                    Text('Elevation: ${stravaData?['total_elevation_gain'] ?? 'N/A'} m', style: TextStyle(color: TColor.black, fontSize: 16)),
+                    Text('Heart Rate: ${stravaData?['heart_rate'] ?? 'N/A'} BPM', style: TextStyle(color: TColor.black, fontSize: 16)),
+                    Text('Cadence: ${stravaData?['cadence'] ?? 'N/A'} rpm', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  ],
+                ),
+              ).animate(
+                effects: [
+                  FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                  ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                  ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                ],
+              )
+            else
+              Text('No Strava data available', style: TextStyle(color: TColor.gray, fontSize: 16)),
+            SizedBox(height: 20),
+            Text(
+              'Gamification',
+              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                gradient: LinearGradient(
+                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Badges Earned: $badgesEarned', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Level Up by completing more exercises!', style: TextStyle(color: TColor.black, fontSize: 16)),
+                ],
+              ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 20),
+            Text(
+              'AI Insights',
+              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
+                gradient: LinearGradient(
+                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Text(
+                'Boost performance by increasing reps by 10% for ${widget.exercise['name']}. Sync Strava for real-time feedback.',
+                style: TextStyle(color: TColor.black, fontSize: 16),
+              ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+              ],
+            ),
+          ],
         ),
       ),
     );

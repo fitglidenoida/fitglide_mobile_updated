@@ -63,7 +63,7 @@ class _SignUpViewState extends State<SignUpView> {
     final response = await ApiService.register(data);
     Navigator.pop(context);
 
-    if (response != null && response.containsKey('jwt')) {
+    if (response.containsKey('jwt')) {
       // Registration successful
       final prefs = await SharedPreferences.getInstance();
       if (response.containsKey('user') && response['user']['id'] != null) {
@@ -85,7 +85,7 @@ class _SignUpViewState extends State<SignUpView> {
       } else {
         // Log and display server error message if available
         String errorMessage = "Registration failed. Please try again.";
-        if (response != null && response.containsKey('message')) {
+        if (response.containsKey('message')) {
           errorMessage = response['message'];
         }
         debugPrint('Registration Error: ${response.toString()}');

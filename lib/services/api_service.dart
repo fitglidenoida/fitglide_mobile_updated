@@ -180,25 +180,24 @@ static Future<List<Map<String, dynamic>>> fetchAllExercises() async {
   }
 
   // Fetch workout plans for a specific user
-  static Future<Map<String, dynamic>> fetchWorkoutPlans(String username) async {
+static Future<Map<String, dynamic>> fetchWorkoutPlans(String username) async {
     return get('workout-plans?populate=*&filters[username][username][\$eq]=$username');
   }
 
   // Add a new workout plan
-  static Future<Map<String, dynamic>> addWorkoutPlan(Map<String, dynamic> data) async {
-    return post('workout-plans', {'data': data});
+static Future<Map<String, dynamic>> addWorkoutPlan(Map<String, dynamic> data) async {
+    return post('workout-plans', data);
   }
 
 // In ApiService.dart, update the updateWorkoutPlan method
 static Future<Map<String, dynamic>> updateWorkoutPlan(String documentId, Map<String, dynamic> data) async {
-  // Ensure data is wrapped in "data" and uses Strapi's exact field name and value
-  final payload = {
-    'data': {
-      'Completed': 'TRUE', // Match Strapi's field name and string value
-    },
-  };
-  return put('workout-plans/$documentId', payload);
-}
+    final payload = {
+      'data': {
+        'Completed': 'TRUE', // Match Strapi's field name and string value
+      },
+    };
+    return put('workout-plans/$documentId', payload); // Use documentId instead of numeric id
+  }
 
 static Future<bool> validateToken(String token) async {
     try {

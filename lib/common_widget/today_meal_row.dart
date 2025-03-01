@@ -1,3 +1,5 @@
+import 'package:animated_toggle_switch/animated_toggle_switch.dart';
+
 import '../common/colo_extension.dart';
 import 'package:flutter/material.dart';
 
@@ -5,7 +7,7 @@ import '../common/common.dart';
 
 class TodayMealRow extends StatelessWidget {
   final Map mObj;
-  const TodayMealRow({super.key, required this.mObj});
+  const TodayMealRow({super.key, required this.mObj, required CustomAnimatedToggleSwitch<bool> toggleWidget});
 
   @override
   Widget build(BuildContext context) {

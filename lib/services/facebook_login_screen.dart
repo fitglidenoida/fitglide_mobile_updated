@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class FacebookLoginScreen extends StatefulWidget {
-  const FacebookLoginScreen({Key? key}) : super(key: key); // Add key
+  const FacebookLoginScreen({super.key}); // Add key
 
   @override
   State<FacebookLoginScreen> createState() => _FacebookLoginScreenState();

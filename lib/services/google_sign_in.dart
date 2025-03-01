@@ -30,7 +30,7 @@ class GoogleSignInHelper {
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       // Fetch ID Token manually if missing
-      final String? idToken = googleAuth?.idToken;
+      final String? idToken = googleAuth.idToken;
       if (idToken == null) {
         debugPrint("Failed to retrieve Google ID token.");
         return null;
