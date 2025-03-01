@@ -1,5 +1,5 @@
 import 'package:fitglide_mobile_application/services/api_service.dart';
-import 'package:fitglide_mobile_application/view/workout_tracker/workout_schedule_view.dart';
+import 'package:fitglide_mobile_application/common_widget/round_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../common/colo_extension.dart';
 
 class WorkoutDetailView extends StatefulWidget {
-  final Map dObj;
+  final Map<String, dynamic> dObj;
 
   const WorkoutDetailView({super.key, required this.dObj});
 
@@ -17,37 +17,76 @@ class WorkoutDetailView extends StatefulWidget {
 }
 
 class _WorkoutDetailViewState extends State<WorkoutDetailView> {
-  List<Map> exercises = [];
-  Map? stravaData;
+  List<Map<String, dynamic>> exercises = [];
+  Map<String, dynamic>? stravaData;
+  Map<String, dynamic>? rentalBike;
   bool isCompleted = false;
-  String _documentId = ''; // Store documentId from dObj
 
   @override
   void initState() {
     super.initState();
-    _documentId = widget.dObj['documentId'] ?? ''; // Extract documentId from dObj, default to empty if not found
     _loadDetails();
   }
 
   Future<void> _loadDetails() async {
     try {
-      // Fetch exercises for the workout using documentId
-      final exerciseResponse = await ApiService.get('exercises?filters[workout_plan][documentId][\$eq]=$_documentId');
-      setState(() {
-        exercises = List<Map>.from(exerciseResponse['data'] ?? []);
-      });
-
-      // Fetch Strava data if available, using documentId
-      final stravaResponse = await ApiService.get('strava-inputs?filters[workout_plan][documentId][\$eq]=$_documentId');
-      if (stravaResponse['data'] != null && (stravaResponse['data'] as List).isNotEmpty) {
+      // Fetch exercises for the workout
+      final exerciseResponse = await ApiService.get('exercises?filters[workout_plan][id][\$eq]=${widget.dObj['id']}');
+      final dynamic exerciseData = exerciseResponse['data'];
+      if (exerciseData is List) {
         setState(() {
-          stravaData = (stravaResponse['data'] as List).first as Map;
+          exercises = exerciseData.map((item) {
+            if (item is Map) {
+              return Map<String, dynamic>.fromEntries(
+                item.entries.map((entry) {
+                  final key = entry.key.toString(); // Convert key to string
+                  return MapEntry<String, dynamic>(key, entry.value);
+                }),
+              );
+            }
+            debugPrint('Unexpected exercise item type: $item');
+            return <String, dynamic>{}; // Default empty map for non-Map items
+          }).whereType<Map<String, dynamic>>().toList();
         });
+      }
+
+      // Fetch Strava data if available
+      final stravaResponse = await ApiService.get('strava-inputs?filters[workout_plan][id][\$eq]=${widget.dObj['id']}');
+      if (stravaResponse['data'] != null && (stravaResponse['data'] as List).isNotEmpty) {
+        final dynamic stravaItem = (stravaResponse['data'] as List).first;
+        if (stravaItem is Map) {
+          setState(() {
+            stravaData = Map<String, dynamic>.fromEntries(
+              stravaItem.entries.map((entry) {
+                final key = entry.key.toString(); // Convert key to string
+                return MapEntry<String, dynamic>(key, entry.value);
+              }),
+            );
+          });
+        }
+      }
+
+      // Fetch rental bike info if outdoor sport and premium
+      if (widget.dObj['sport_type'] == 'Cycling' || widget.dObj['sport_type'] == 'Running') {
+        final bikeResponse = await ApiService.get('rental-bikes?filters[location][\$eq]=${widget.dObj['location'] ?? 'Default'}');
+        if (bikeResponse['data'] != null && (bikeResponse['data'] as List).isNotEmpty) {
+          final dynamic bikeItem = (bikeResponse['data'] as List).first;
+          if (bikeItem is Map) {
+            setState(() {
+              rentalBike = Map<String, dynamic>.fromEntries(
+                bikeItem.entries.map((entry) {
+                  final key = entry.key.toString(); // Convert key to string
+                  return MapEntry<String, dynamic>(key, entry.value);
+                }),
+              );
+            });
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error loading workout details: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load details: $e', style: TextStyle(color: TColor.black))),
+        SnackBar(content: Text('Failed to load details: $e')),
       );
     }
   }
@@ -55,18 +94,14 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
   Future<void> _toggleCompletion() async {
     setState(() => isCompleted = !isCompleted);
     try {
-      if (_documentId.isNotEmpty) {
-        await ApiService.updateWorkoutPlan(_documentId, {'Completed': isCompleted ? 'TRUE' : 'FALSE'});
-        if (isCompleted) {
-          await _saveBadge(); // Award badge for completion
-        }
-      } else {
-        throw Exception('Document ID is missing or empty');
+      await ApiService.updateWorkoutPlan('workout-plans/${widget.dObj['id']}', {'completed': isCompleted});
+      if (isCompleted && stravaData != null) {
+        _saveBadge(); // Award badge for completion
       }
     } catch (e) {
       debugPrint('Error updating completion: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update completion: $e', style: TextStyle(color: TColor.black))),
+        SnackBar(content: Text('Failed to update completion: $e')),
       );
     }
   }
@@ -83,22 +118,14 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
     Share.share(text);
   }
 
-  void _navigateToSchedule() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => WorkoutScheduleView()), // Use const for StatefulWidget if no parameters
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: TColor.white, // Clean white background
+      backgroundColor: TColor.white, // White background
       appBar: AppBar(
-        title: Text(widget.dObj['title'] ?? 'Workout Details', style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold)),
+        title: Text(widget.dObj['title'] ?? 'Workout Details'),
         backgroundColor: TColor.white, // White
-        elevation: 0, // No shadow for modern look
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios, color: TColor.black), // Black
           onPressed: () => Navigator.pop(context),
@@ -109,10 +136,6 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
               icon: Icon(Icons.share, color: TColor.darkRose), // Darker dusty rose
               onPressed: _shareWorkout,
             ),
-          IconButton(
-            icon: Icon(Icons.calendar_today, color: TColor.darkRose), // Darker dusty rose for schedule navigation
-            onPressed: _navigateToSchedule, // Use the method to navigate
-          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -120,112 +143,127 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Workout Overview',
+              style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+              ],
+            ),
+            SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: TColor.lightGray, // Light gray with subtle gradient
+                color: TColor.lightGray, // Light gray
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle darker dusty rose border
-                gradient: LinearGradient(
-                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Darker dusty rose
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Workout Overview',
-                    style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 15),
                   Text('Sport Type: ${widget.dObj['sport_type'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
                   Text('Difficulty: ${widget.dObj['difficulty'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
                   Text('Duration: ${widget.dObj['duration'] ?? 'N/A'} min', style: TextStyle(color: TColor.black, fontSize: 16)),
                   Text('Calories: ${widget.dObj['calories'] ?? 'N/A'} kcal', style: TextStyle(color: TColor.black, fontSize: 16)),
                   if (widget.dObj['sport_type'] == 'Cycling' || widget.dObj['sport_type'] == 'Running')
-                    Column(
-                      children: [
-                        Text('Distance Planned: ${widget.dObj['distance_planned'] ?? 'N/A'} km', style: TextStyle(color: TColor.black, fontSize: 16)),
-                        Text('Elevation Planned: ${widget.dObj['elevation_planned'] ?? 'N/A'} m', style: TextStyle(color: TColor.black, fontSize: 16)),
-                      ],
-                    ),
+                    Text('Distance Planned: ${widget.dObj['distance_planned'] ?? 'N/A'} km', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  if (widget.dObj['sport_type'] == 'Cycling' || widget.dObj['sport_type'] == 'Running')
+                    Text('Elevation Planned: ${widget.dObj['elevation_planned'] ?? 'N/A'} m', style: TextStyle(color: TColor.black, fontSize: 16)),
+
                 ],
               ),
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
               ],
             ),
             SizedBox(height: 20),
             Text(
               'Exercises',
-              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
               ],
             ),
-            SizedBox(height: 15),
+            SizedBox(height: 10),
             ...exercises.map((exercise) => Container(
-              margin: const EdgeInsets.only(bottom: 15),
+              margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
                 color: TColor.lightGray, // Light gray
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
-                gradient: LinearGradient(
-                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Darker dusty rose
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Exercise: ${exercise['name'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 18, fontWeight: FontWeight.w600)),
+                  Text('Exercise: ${exercise['name'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text('Category: ${exercise['category'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
                   Text('Duration: ${exercise['duration'] ?? 'N/A'} min', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  Text('Calories/Min: ${exercise['calories_per_minute'] ?? 'N/A'} kcal', style: TextStyle(color: TColor.black, fontSize: 16)),
                   if (widget.dObj['sport_type'] == 'Gym')
                     Text('Reps: ${exercise['reps'] ?? 'N/A'}, Sets: ${exercise['sets'] ?? 'N/A'}', style: TextStyle(color: TColor.black, fontSize: 16)),
-                  Text('Calories/Min: ${exercise['calories_per_minute'] ?? 'N/A'} kcal', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  if (widget.dObj['sport_type'] == 'Cycling' || widget.dObj['sport_type'] == 'Running')
+                    Text('Distance Planned: ${exercise['distance_planned'] ?? 'N/A'} km', style: TextStyle(color: TColor.black, fontSize: 16)),
+                  if (widget.dObj['sport_type'] == 'Cycling' || widget.dObj['sport_type'] == 'Running')
+                    Text('Elevation Planned: ${exercise['elevation_planned'] ?? 'N/A'} m', style: TextStyle(color: TColor.black, fontSize: 16)),
                 ],
               ),
             ).animate(
               effects: [
-                FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
               ],
             )),
             SizedBox(height: 20),
             Text(
               'Strava Performance',
-              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
               ],
             ),
-            SizedBox(height: 15),
+            SizedBox(height: 10),
             if (stravaData != null)
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
                   color: TColor.lightGray, // Light gray
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
-                  gradient: LinearGradient(
-                    colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Darker dusty rose
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,9 +276,9 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
                 ),
               ).animate(
                 effects: [
-                  FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                  ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                  ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                  FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                  ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                  ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
                 ],
               )
             else
@@ -278,38 +316,35 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
               ),
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
               ],
             ),
             SizedBox(height: 20),
-            ElevatedButton(
+            RoundButton(
+              title: isCompleted ? 'Mark as Incomplete' : 'Mark as Completed',
+              type: RoundButtonType.bgGradient, // Using primary gradient (lightGray to darkRose)
               onPressed: _toggleCompletion,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TColor.darkRose, // Darker dusty rose
-                foregroundColor: TColor.white, // White
-                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 40),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 4, // Subtle shadow
-              ),
-              child: Text(isCompleted ? 'Mark as Incomplete' : 'Mark as Completed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              fontSize: 16,
+              elevation: 1,
+              fontWeight: FontWeight.w700,
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
               ],
             ),
             SizedBox(height: 20),
             Text(
-              'AI Insights',
-              style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.bold),
+              'AI Recommendation',
+              style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
               ],
             ),
             SizedBox(height: 10),
@@ -317,13 +352,15 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
                 color: TColor.lightGray, // Light gray
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle border
-                gradient: LinearGradient(
-                  colors: [TColor.lightGray, TColor.lightIndigo.withOpacity(0.1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Darker dusty rose
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: Text(
                 'Based on your Strava data, increase elevation by 10% for better calorie burn. Maintain heart rate 120-140 BPM for optimal performance.',
@@ -331,9 +368,9 @@ class _WorkoutDetailViewState extends State<WorkoutDetailView> {
               ),
             ).animate(
               effects: [
-                FadeEffect(duration: 1200.ms, curve: Curves.easeInOut),
-                ScaleEffect(duration: 1200.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                ShakeEffect(duration: 600.ms, curve: Curves.easeOut),
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
               ],
             ),
           ],
