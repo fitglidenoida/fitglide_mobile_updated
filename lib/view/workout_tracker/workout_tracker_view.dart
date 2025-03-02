@@ -20,12 +20,12 @@ class ProfileView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: TColor.white, // Changed from TColor.white (already correct)
+        title: const Text('Profile', style: TextStyle(color: TColor.black)), // Black
+        backgroundColor: TColor.white, // White
       ),
-      backgroundColor: TColor.white, // Changed from TColor.white (already correct)
+      backgroundColor: TColor.white, // White
       body: const Center(
-        child: Text('Profile View - To be implemented', style: TextStyle(color: TColor.black)),
+        child: Text('Profile View - To be implemented', style: TextStyle(color: TColor.black)), // Black
       ),
     );
   }
@@ -39,7 +39,7 @@ class WorkoutTrackerView extends StatefulWidget {
 }
 
 class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
-  List<Map> workoutArr = [];
+  List<Map<String, dynamic>> workoutArr = []; // Explicitly typed as Map<String, dynamic>
   int selectedTab = 1; // Default to Workout tab (index 1 in MainScreen)
 
   @override
@@ -51,13 +51,36 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
   Future<void> _loadWorkouts() async {
     try {
       final response = await ApiService.get('workout-plans?populate=*');
-      setState(() {
-        workoutArr = List<Map>.from(response['data'] ?? []);
-      });
+      debugPrint('Workouts Response: $response'); // Debug log to inspect data
+      final dynamic data = response['data'];
+      if (data is List) {
+        setState(() {
+          workoutArr = data.map((item) {
+            if (item is Map) {
+              return Map<String, dynamic>.fromEntries(
+                item.entries.map((entry) {
+                  final key = entry.key.toString(); // Convert key to string
+                  return MapEntry<String, dynamic>(key, entry.value);
+                }),
+              );
+            }
+            debugPrint('Unexpected workout item type: $item');
+            return <String, dynamic>{}; // Default empty map for non-Map items
+          }).whereType<Map<String, dynamic>>().toList();
+        });
+      } else {
+        debugPrint('Unexpected data type for "data" in workouts: $data');
+        setState(() {
+          workoutArr = [];
+        });
+      }
     } catch (e) {
       debugPrint('Error loading workouts: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load workouts: $e')),
+        SnackBar(
+          content: Text('Failed to load workouts: $e', style: TextStyle(color: TColor.black)), // Black
+          backgroundColor: TColor.lightGray, // Light gray
+        ),
       );
     }
   }
@@ -108,7 +131,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: TColor.white, // Changed from Color(0xFF2C2C2C) to white background
+      backgroundColor: TColor.white, // White background
       body: SafeArea(
         child: Column(
           children: [
@@ -117,7 +140,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                 headerSliverBuilder: (context, innerBoxIsScrolled) {
                   return [
                     SliverAppBar(
-                      backgroundColor: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+                      backgroundColor: TColor.white, // White
                       centerTitle: true,
                       elevation: 0,
                       leading: InkWell(
@@ -130,7 +153,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                           width: 40,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                            color: TColor.lightGray, // Light gray
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Image.asset(
@@ -149,7 +172,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                       ),
                       title: Text(
                         "Workout Tracker",
-                        style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold), // Changed from Colors.white to black
+                        style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold), // Black
                       ).animate(
                         effects: [
                           FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
@@ -162,7 +185,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => AddScheduleView(date: DateTime.now())),
+                              MaterialPageRoute(builder: (context) =>  AddScheduleView(date: DateTime.now())),
                             );
                           },
                           child: Container(
@@ -171,11 +194,11 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                             width: 40,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                              color: TColor.lightGray, // Light gray
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Image.asset(
-                              "assets/img/more_btn.png",
+                              "assets/img/add_btn.png",
                               width: 15,
                               height: 15,
                               fit: BoxFit.contain,
@@ -193,13 +216,13 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                     SliverToBoxAdapter(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        color: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+                        color: TColor.white, // White
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               "Today, ${DateTime.now().day} ${DateFormat('MMMM').format(DateTime.now())}",
-                              style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w500), // Changed from Colors.white to black
+                              style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w500), // Black
                             ).animate(
                               effects: [
                                 FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
@@ -209,7 +232,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                             ),
                             Text(
                               "0/0 Completed",
-                              style: TextStyle(color: TColor.gray, fontSize: 14), // Changed from Colors.white70 to gray
+                              style: TextStyle(color: TColor.gray, fontSize: 14), // Gray
                             ).animate(
                               effects: [
                                 FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
@@ -225,27 +248,34 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                 },
                 body: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  color: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+                  color: TColor.white, // White
                   child: Column(
                     children: [
                       SizedBox(height: media.width * 0.05),
                       Container(
                         padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
-                          color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                          color: TColor.lightGray, // Light gray
                           borderRadius: BorderRadius.circular(15),
                           gradient: LinearGradient(
-                            colors: TColor.primaryG, // Using TColor.primaryG for gradient [lightGray, darkRose]
+                            colors: TColor.primaryG, // [lightGray, darkRose]
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               "Weekly Progress",
-                              style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Changed from Colors.white to black
+                              style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Black
                             ).animate(
                               effects: [
                                 FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
@@ -253,7 +283,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                                 ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
                               ],
                             ),
-                            Icon(Icons.arrow_forward_ios, color: TColor.darkRose, size: 16), // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                            Icon(Icons.arrow_forward_ios, color: TColor.darkRose, size: 16), // Darker dusty rose
                           ],
                         ),
                       ).animate(
@@ -287,9 +317,12 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                                   FlSpot(6, 90),
                                 ],
                                 isCurved: true,
-                                color: TColor.lightIndigo, // Changed from Color(0xFF4A6D4A) to TColor.lightIndigo
+                                color: TColor.lightIndigo, // Lighter indigo
                                 dotData: FlDotData(show: false),
-                                belowBarData: BarAreaData(show: false),
+                                belowBarData: BarAreaData(
+                                  show: true,
+                                  color: TColor.lightIndigo.withOpacity(0.2),
+                                ),
                               ),
                             ],
                           ),
@@ -307,7 +340,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                         children: [
                           Text(
                             "Workouts",
-                            style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Changed from Colors.white to black
+                            style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Black
                           ).animate(
                             effects: [
                               FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
@@ -319,7 +352,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                             onPressed: () {},
                             child: Text(
                               "${workoutArr.length} Items",
-                              style: TextStyle(color: TColor.gray, fontSize: 14), // Changed from Colors.white70 to gray
+                              style: TextStyle(color: TColor.gray, fontSize: 14), // Gray
                             ).animate(
                               effects: [
                                 FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
@@ -336,76 +369,99 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                           itemCount: workoutArr.length,
                           itemBuilder: (context, index) {
                             var wObj = workoutArr[index] as Map<String, dynamic>? ?? {};
+                            final isCompleted = wObj['completed'] == true;
                             return Container(
                               margin: const EdgeInsets.only(bottom: 10),
                               padding: const EdgeInsets.all(15),
                               decoration: BoxDecoration(
-                                color: TColor.lightGray, // Changed from Color(0xFF3C3C3C) to light gray
+                                color: TColor.lightGray, // Light gray
                                 borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Changed from Color(0xFF8B4B4B) to TColor.darkRose
-                              ),
-                              child: Row(
-                                children: [
-                                  Image.asset(
-                                    wObj["image"] ?? "assets/img/img_1.png",
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Icon(Icons.error, color: TColor.gray); // Changed from Colors.white70 to gray
-                                    },
-                                  ).animate(
-                                    effects: [
-                                      FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
-                                      ScaleEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                                      ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 15),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          wObj["title"] ?? 'Unnamed Workout',
-                                          style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Changed from Colors.white to black
-                                        ).animate(
-                                          effects: [
-                                            FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
-                                            SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(10, 0), end: Offset(0, 0)),
-                                            ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
-                                          ],
-                                        ),
-                                        Text(
-                                          "${wObj["time"] ?? 'N/A'} | ${wObj["calories"] ?? 'N/A'} Calories Burn",
-                                          style: TextStyle(color: TColor.gray, fontSize: 14), // Changed from Colors.white70 to gray
-                                        ).animate(
-                                          effects: [
-                                            FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
-                                            SlideEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(10, 0), end: Offset(0, 0)),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => WorkoutDetailView(dObj: wObj),
-                                        ),
-                                      );
-                                    },
-                                    child: Icon(Icons.arrow_forward_ios, color: TColor.lightIndigo, size: 16), // Changed from Color(0xFF4A6D4A) to TColor.lightIndigo
-                                  ).animate(
-                                    effects: [
-                                      FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
-                                      ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                                      ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
-                                    ],
+                                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Darker dusty rose
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
                                   ),
                                 ],
+                              ),
+                              child: InkWell(
+                                onTap: isCompleted
+                                    ? () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => WorkoutDetailView(dObj: wObj),
+                                          ),
+                                        )
+                                    : null,
+                                child: Row(
+                                  children: [
+                                    Image.asset(
+                                      wObj["image"] ?? "assets/img/img_1.png",
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Icon(Icons.error, color: TColor.gray); // Gray
+                                      },
+                                    ).animate(
+                                      effects: [
+                                        FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                        ScaleEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                        ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 15),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            wObj["title"] ?? 'Unnamed Workout',
+                                            style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700), // Black
+                                          ).animate(
+                                            effects: [
+                                              FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
+                                              SlideEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(10, 0), end: Offset(0, 0)),
+                                              ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                            ],
+                                          ),
+                                          Text(
+                                            "${wObj["time"] ?? 'N/A'} | ${wObj["calories"] ?? 'N/A'} Calories Burn",
+                                            style: TextStyle(color: TColor.gray, fontSize: 14), // Gray
+                                          ).animate(
+                                            effects: [
+                                              FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                              SlideEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(10, 0), end: Offset(0, 0)),
+                                            ],
+                                          ),
+                                          if (isCompleted)
+                                            Text(
+                                              'Completed',
+                                              style: TextStyle(color: TColor.darkRose, fontSize: 14, fontWeight: FontWeight.w600), // Darker dusty rose
+                                            ).animate(
+                                              effects: [
+                                                FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                                ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                                ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                              ],
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      isCompleted ? Icons.check_circle : Icons.schedule,
+                                      color: isCompleted ? TColor.darkRose : TColor.gray, // Darker dusty rose or gray
+                                      size: 20,
+                                    ).animate(
+                                      effects: [
+                                        FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
+                                        ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                        ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -422,7 +478,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                 ),
               ),
             ),
-            // Add bottom navigation bar
+            // Add bottom navigation bar (light mode only)
             BottomNavigationBar(
               currentIndex: selectedTab,
               onTap: _onTabTapped,
@@ -444,7 +500,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                       ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
                     ],
                   ),
-                  activeIcon: Icon(Icons.home, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                  activeIcon: Icon(Icons.home, color: TColor.darkRose, size: 28).animate( // Darker dusty rose
                     effects: [
                       FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                       ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -470,7 +526,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                       ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
                     ],
                   ),
-                  activeIcon: Icon(Icons.fitness_center, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                  activeIcon: Icon(Icons.fitness_center, color: TColor.darkRose, size: 28).animate( // Darker dusty rose
                     effects: [
                       FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                       ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -496,7 +552,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                       ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
                     ],
                   ),
-                  activeIcon: Icon(Icons.restaurant, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                  activeIcon: Icon(Icons.restaurant, color: TColor.darkRose, size: 28).animate( // Darker dusty rose
                     effects: [
                       FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                       ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -522,7 +578,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                       ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
                     ],
                   ),
-                  activeIcon: Icon(Icons.nightlight_round, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                  activeIcon: Icon(Icons.nightlight_round, color: TColor.darkRose, size: 28).animate( // Darker dusty rose
                     effects: [
                       FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                       ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -548,7 +604,7 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                       ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
                     ],
                   ),
-                  activeIcon: Icon(Icons.person, color: TColor.darkRose, size: 28).animate( // Changed from Color(0xFF8B4B4B) to TColor.darkRose
+                  activeIcon: Icon(Icons.person, color: TColor.darkRose, size: 28).animate( // Darker dusty rose
                     effects: [
                       FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                       ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -558,13 +614,13 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
                   label: "Profile",
                 ),
               ],
-              selectedItemColor: TColor.darkRose, // Changed from Color(0xFF8B4B4B) to TColor.darkRose
-              unselectedItemColor: TColor.gray, // Changed from Colors.white70 to gray
-              backgroundColor: TColor.white, // Changed from Color(0xFF2C2C2C) to white
+              selectedItemColor: TColor.darkRose, // Darker dusty rose
+              unselectedItemColor: TColor.gray, // Gray
+              backgroundColor: TColor.white, // White
               elevation: 0, // Remove elevation to avoid white strip
               type: BottomNavigationBarType.fixed,
-              selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColor.darkRose), // Changed from Color(0xFF8B4B4B) to TColor.darkRose
-              unselectedLabelStyle: TextStyle(fontSize: 14, color: TColor.gray), // Changed from Colors.white70 to gray
+              selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColor.darkRose), // Darker dusty rose
+              unselectedLabelStyle: TextStyle(fontSize: 14, color: TColor.gray), // Gray
             ).animate(
               effects: [
                 FadeEffect(duration: 800.ms, curve: Curves.easeInOut),

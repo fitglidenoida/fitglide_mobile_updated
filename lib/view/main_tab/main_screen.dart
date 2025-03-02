@@ -1,34 +1,30 @@
-import 'package:fitglide_mobile_application/common/common.dart';
+import 'package:fitglide_mobile_application/services/ai_service.dart';
 import 'package:fitglide_mobile_application/services/api_service.dart';
-import 'package:fitglide_mobile_application/services/storage_service.dart';
 import 'package:fitglide_mobile_application/view/meal_planner/meal_schedule_view.dart';
 import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_schedule_view.dart';
 import 'package:fitglide_mobile_application/view/workout_tracker/add_schedule_view.dart';
-import 'package:fitglide_mobile_application/view/workout_tracker/workout_tracker_view.dart'; // Import WorkoutTrackerView
+import 'package:fitglide_mobile_application/view/workout_tracker/workout_tracker_view.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
-import 'package:animated_text_kit/animated_text_kit.dart'; // For typewriter animation
+import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:intl/intl.dart'; // For date formatting
 import '../../common/colo_extension.dart';
 
-// Placeholder for ProfileView (you can replace this with your actual ProfileView implementation)
-class ProfileView extends StatelessWidget {
-  const ProfileView({super.key});
+// Placeholder for DataService (assumed to exist or replace with ApiService)
+class DataService {
+  Future<Map<String, dynamic>> fetchUserDetails() async {
+    // Replace with actual Strapi call
+    final response = await ApiService.get('users/me?populate=*');
+    return response['data'] as Map<String, dynamic>? ?? {};
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: TColor.white,
-      ),
-      backgroundColor: TColor.white,
-      body:  Center(
-        child: Text('Profile View - To be implemented', style: TextStyle(color: TColor.black)),
-      ),
-    );
+  Future<List<Map<String, dynamic>>> fetchHealthVitals(String username) async {
+    final response = await ApiService.get('health-vitals?filters[users_permissions_user][username][\$eq]=$username');
+    final data = response['data'] as List<dynamic>? ?? [];
+    return data.map((item) => item as Map<String, dynamic>).toList();
   }
 }
 
@@ -57,9 +53,9 @@ class _MainScreenState extends State<MainScreen> {
   double? caloriesBurned;
   double? caloriesConsumed;
   double? weightLossGoal;
-  int? stepsTaken; // New metric for steps, as an example
+  int? stepsTaken;
 
-  // Remove 'late' and initialize lineChartData with a default value
+  // Initialize lineChartData with default values
   LineChartData lineChartData = LineChartData(
     gridData: FlGridData(show: false),
     titlesData: FlTitlesData(
@@ -80,8 +76,8 @@ class _MainScreenState extends State<MainScreen> {
         spots: List.generate(7, (i) => FlSpot(i.toDouble(), 60.0)), // Default spots
         isCurved: true,
         barWidth: 3,
-        color: Color(0xFFDDA0A0), // Darker dusty rose
-        belowBarData: BarAreaData(show: true, color: Color(0xFFDDA0A0).withOpacity(0.1)),
+        color: TColor.primaryRed, // Vibrant red for charts (FitOn-inspired)
+        belowBarData: BarAreaData(show: true, color: TColor.primaryRed.withOpacity(0.1)),
         dotData: FlDotData(show: true),
       ),
     ],
@@ -91,20 +87,22 @@ class _MainScreenState extends State<MainScreen> {
     maxY: 100, // Ensure reasonable bounds
   );
 
+  String? maxRecommendation;
+  String? maxTip;
+
   @override
   void initState() {
     super.initState();
     fetchUserData();
+    _getMaxRecommendations(); // Load Max’s recommendations on init (deferred API calls until later)
   }
 
   Future<void> fetchUserData() async {
     try {
       final dataService = DataService();
       final response = await dataService.fetchUserDetails();
-      debugPrint('User details response: $response'); // Debug print to check user data
-      if (response.isEmpty) {
-        throw Exception('No user details returned');
-      }
+      debugPrint('User details response: $response');
+      if (response.isEmpty) throw Exception('No user details returned');
       setState(() {
         firstName = response['First_name'] ?? "Guest";
         username = response['username'] ?? "";
@@ -119,7 +117,7 @@ class _MainScreenState extends State<MainScreen> {
           fetchWeightLossGoal(username),
           fetchTrendData(username),
           fetchBadges(username),
-          fetchStepsTaken(username), // New method to fetch steps
+          fetchStepsTaken(username),
         ]);
       }
     } catch (e) {
@@ -137,19 +135,16 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> fetchTrendData(String username) async {
     try {
       final healthVitalsList = await DataService().fetchHealthVitals(username);
-      debugPrint('Trend data (health vitals): $healthVitalsList'); // Debug print to check data
-      if (healthVitalsList.isEmpty) {
-        throw Exception('No health vitals data returned');
-      }
+      debugPrint('Trend data (health vitals): $healthVitalsList');
+      if (healthVitalsList.isEmpty) throw Exception('No health vitals data returned');
       setState(() {
         heartRateSpots = List.generate(7, (i) {
           final vital = healthVitalsList.length > i ? healthVitalsList[i] : null;
           final heartRate = vital != null && vital['heart_rate'] != null
               ? (vital['heart_rate'] as num).toDouble()
-              : 60.0; // Default heart rate if data is missing
+              : 60.0; // Default heart rate
           return FlSpot(i.toDouble(), heartRate);
         });
-        // Update lineChartData with the new heartRateSpots
         lineChartData = LineChartData(
           gridData: FlGridData(show: false),
           titlesData: FlTitlesData(
@@ -170,8 +165,8 @@ class _MainScreenState extends State<MainScreen> {
               spots: heartRateSpots.isNotEmpty ? heartRateSpots : List.generate(7, (i) => FlSpot(i.toDouble(), 60.0)),
               isCurved: true,
               barWidth: 3,
-              color: Color(0xFFDDA0A0), // Darker dusty rose
-              belowBarData: BarAreaData(show: true, color: Color(0xFFDDA0A0).withOpacity(0.1)),
+              color: TColor.primaryRed, // Vibrant red for charts (FitOn-inspired)
+              belowBarData: BarAreaData(show: true, color: TColor.primaryRed.withOpacity(0.1)),
               dotData: FlDotData(show: true),
             ),
           ],
@@ -184,7 +179,7 @@ class _MainScreenState extends State<MainScreen> {
     } catch (e) {
       debugPrint('Error fetching trend data: $e');
       setState(() {
-        heartRateSpots = List.generate(7, (i) => FlSpot(i.toDouble(), 60.0)); // Fallback data
+        heartRateSpots = List.generate(7, (i) => FlSpot(i.toDouble(), 60.0)); // Fallback
         lineChartData = LineChartData(
           gridData: FlGridData(show: false),
           titlesData: FlTitlesData(
@@ -205,8 +200,8 @@ class _MainScreenState extends State<MainScreen> {
               spots: heartRateSpots,
               isCurved: true,
               barWidth: 3,
-              color: Color(0xFFDDA0A0), // Darker dusty rose
-              belowBarData: BarAreaData(show: true, color: Color(0xFFDDA0A0).withOpacity(0.1)),
+              color: TColor.primaryRed, // Vibrant red for charts (FitOn-inspired)
+              belowBarData: BarAreaData(show: true, color: TColor.primaryRed.withOpacity(0.1)),
               dotData: FlDotData(show: true),
             ),
           ],
@@ -236,19 +231,11 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> fetchHealthVitals(String username) async {
     try {
-      final List<dynamic> healthVitalsList = await DataService().fetchHealthVitals(username);
-      debugPrint('Health vitals response: $healthVitalsList'); // Debug print to check data
-      if (healthVitalsList.isEmpty) {
-        throw Exception('No health vitals data returned');
-      }
+      final healthVitalsList = await DataService().fetchHealthVitals(username);
+      debugPrint('Health vitals response: $healthVitalsList');
+      if (healthVitalsList.isEmpty) throw Exception('No health vitals data returned');
 
-      final Map<String, dynamic> vitalData = healthVitalsList[0]['attributes'] ?? healthVitalsList[0];
-      final String? documentId = healthVitalsList[0]['id']?.toString();
-
-      if (documentId != null) {
-        await StorageService.saveData('health_vitals_document_id', documentId);
-      }
-
+      final vitalData = healthVitalsList[0]['attributes'] ?? healthVitalsList[0];
       final double? weightKg = (vitalData['WeightInKilograms'] as num?)?.toDouble();
       final double? heightCm = (vitalData['height'] as num?)?.toDouble();
       final String? dateOfBirth = vitalData['date_of_birth'] as String?;
@@ -256,9 +243,7 @@ class _MainScreenState extends State<MainScreen> {
       final double? waterIntakeValue = (vitalData['water_intake'] as num?)?.toDouble();
       final double? sleepDurationValue = (vitalData['sleep_duration'] as num?)?.toDouble();
 
-      if (weightKg == null || heightCm == null || dateOfBirth == null) {
-        throw Exception('Missing vital data for BMI calculation');
-      }
+      if (weightKg == null || heightCm == null || dateOfBirth == null) throw Exception('Missing vital data for BMI');
 
       final heightM = heightCm / 100.0;
       final double calculatedBmi = weightKg / (heightM * heightM);
@@ -284,8 +269,8 @@ class _MainScreenState extends State<MainScreen> {
     } catch (e) {
       debugPrint("Error fetching health vitals: $e");
       setState(() {
-        bmiCategory = "Error fetching health vitals.";
         bmi = null;
+        bmiCategory = "Error fetching health vitals.";
         heartRate = "N/A";
         waterIntake = [];
         sleepDuration = "N/A";
@@ -301,10 +286,8 @@ class _MainScreenState extends State<MainScreen> {
       final response = await ApiService.get(
           'workout-plans?populate=exercises&filters[users_permissions_user][username][\$eq]=$username&filters[scheduled_date][\$gte]=${todayStart.toIso8601String()}&sort[0]=scheduled_date:asc');
       final workoutData = response['data'] as List<dynamic>? ?? [];
-      debugPrint('Upcoming workouts response: $workoutData'); // Debug print to check data
-      if (workoutData.isEmpty) {
-        throw Exception('No upcoming workouts returned');
-      }
+      debugPrint('Upcoming workouts response: $workoutData');
+      if (workoutData.isEmpty) throw Exception('No upcoming workouts returned');
 
       setState(() {
         upcomingWorkouts = workoutData.take(3).map((workout) {
@@ -312,15 +295,17 @@ class _MainScreenState extends State<MainScreen> {
           final pendingExercises = exercises.where((e) => (e['completed'] as bool? ?? false) == false).length;
           final totalKcal = exercises.fold<int>(0, (sum, e) => sum + (e['calories_per_minute'] as int? ?? 0) * (e['duration'] as int? ?? 0));
           final totalTime = exercises.fold<int>(0, (sum, e) => sum + (e['duration'] as int? ?? 0));
-          final scheduledDate = stringToDate(workout['scheduled_date'] as String, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", ).toLocal();
+          final scheduledDate = DateTime.parse(workout['scheduled_date'] as String).toLocal();
+          final dateFormatter = DateFormat('dd/MM/yyyy hh:mm a'); // Format with AM/PM
           return {
             "name": workout['Title'] as String? ?? 'Untitled Workout',
             "image": "assets/img/Workout${(workoutData.indexOf(workout) % 3) + 1}.png",
             "pendingExercises": pendingExercises.toString(),
             "kcal": totalKcal.toString(),
             "time": totalTime.toString(),
-            "date": dateToString(scheduledDate, formatStr: "dd/MM/yyyy hh:mm aa"),
+            "date": dateFormatter.format(scheduledDate), // Use DateFormat for AM/PM
             "documentId": workout['id'].toString(),
+            "fitness_goals": workout['fitness_goals'] ?? [], // Add fitness_goals from workouts
           };
         }).toList();
       });
@@ -336,10 +321,8 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final healthVitalsList = await DataService().fetchHealthVitals(username);
       final latestHealth = healthVitalsList.isNotEmpty ? healthVitalsList.first : null;
-      debugPrint('Water intake data: $latestHealth'); // Debug print to check data
-      if (latestHealth == null || latestHealth['water_intake'] == null) {
-        throw Exception('No water intake data returned');
-      }
+      debugPrint('Water intake data: $latestHealth');
+      if (latestHealth == null || latestHealth['water_intake'] == null) throw Exception('No water intake data returned');
 
       setState(() {
         final totalWater = (latestHealth['water_intake'] as num).toDouble();
@@ -363,10 +346,8 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final healthVitalsList = await DataService().fetchHealthVitals(username);
       final latestHealth = healthVitalsList.isNotEmpty ? healthVitalsList.first : null;
-      debugPrint('Real-time data: $latestHealth'); // Debug print to check data
-      if (latestHealth == null) {
-        throw Exception('No real-time data returned');
-      }
+      debugPrint('Real-time data: $latestHealth');
+      if (latestHealth == null) throw Exception('No real-time data returned');
 
       setState(() {
         heartRate = latestHealth['heart_rate'] != null ? "${latestHealth['heart_rate']} BPM" : "N/A";
@@ -377,7 +358,6 @@ class _MainScreenState extends State<MainScreen> {
             latestHealth['heart_rate'] != null ? latestHealth['heart_rate'].toDouble() : 60.0,
           );
         });
-        // Update lineChartData with the new heartRateSpots
         lineChartData = LineChartData(
           gridData: FlGridData(show: false),
           titlesData: FlTitlesData(
@@ -398,8 +378,8 @@ class _MainScreenState extends State<MainScreen> {
               spots: heartRateSpots.isNotEmpty ? heartRateSpots : List.generate(7, (i) => FlSpot(i.toDouble(), 60.0)),
               isCurved: true,
               barWidth: 3,
-              color: Color(0xFFDDA0A0), // Darker dusty rose
-              belowBarData: BarAreaData(show: true, color: Color(0xFFDDA0A0).withOpacity(0.1)),
+              color: TColor.primaryRed, // Vibrant red for charts (FitOn-inspired)
+              belowBarData: BarAreaData(show: true, color: TColor.primaryRed.withOpacity(0.1)),
               dotData: FlDotData(show: true),
             ),
           ],
@@ -435,8 +415,8 @@ class _MainScreenState extends State<MainScreen> {
               spots: heartRateSpots,
               isCurved: true,
               barWidth: 3,
-              color: Color(0xFFDDA0A0), // Darker dusty rose
-              belowBarData: BarAreaData(show: true, color: Color(0xFFDDA0A0).withOpacity(0.1)),
+              color: TColor.primaryRed, // Vibrant red for charts (FitOn-inspired)
+              belowBarData: BarAreaData(show: true, color: TColor.primaryRed.withOpacity(0.1)),
               dotData: FlDotData(show: true),
             ),
           ],
@@ -454,20 +434,18 @@ class _MainScreenState extends State<MainScreen> {
       final now = DateTime.now().toLocal();
       final todayStart = DateTime(now.year, now.month, now.day).toLocal();
       final todayEnd = todayStart.add(const Duration(days: 1));
-      debugPrint('Fetching calorie data for username: $username'); // Debug print
+      debugPrint('Fetching calorie data for username: $username');
 
-      final workoutResponse = await ApiService.fetchWorkoutPlans(username);
+      final workoutResponse = await ApiService.get('workout-plans?populate=exercises&filters[users_permissions_user][username][\$eq]=$username');
       final workoutData = workoutResponse['data'] as List<dynamic>? ?? [];
-      debugPrint('Workout data: $workoutData'); // Debug print
-      if (workoutData.isEmpty) {
-        throw Exception('No workout data returned');
-      }
+      debugPrint('Workout data: $workoutData');
+      if (workoutData.isEmpty) throw Exception('No workout data returned');
 
       caloriesBurned = workoutData.fold<double>(
           0, (sum, workout) {
             final scheduledDateStr = workout['scheduled_date'] as String?;
             final scheduledDate = scheduledDateStr != null
-                ? stringToDate(scheduledDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", ).toLocal()
+                ? DateTime.parse(scheduledDateStr).toLocal()
                 : DateTime.now().toLocal();
             if (scheduledDate.isAfter(todayStart) && scheduledDate.isBefore(todayEnd) && (workout['Completed'] as String?) == 'TRUE') {
               final exercises = workout['exercises'] as List<dynamic>? ?? [];
@@ -477,13 +455,10 @@ class _MainScreenState extends State<MainScreen> {
             return sum;
           });
 
-      final mealResponse = await ApiService.get(
-          'diet-plans?populate=meals.diet_components&filters[users_permissions_user][username][\$eq]=$username');
+      final mealResponse = await ApiService.get('diet-plans?populate=meals.diet_components&filters[users_permissions_user][username][\$eq]=$username');
       final mealPlans = mealResponse['data'] as List<dynamic>? ?? [];
-      debugPrint('Meal plans: $mealPlans'); // Debug print
-      if (mealPlans.isEmpty) {
-        throw Exception('No meal plans returned');
-      }
+      debugPrint('Meal plans: $mealPlans');
+      if (mealPlans.isEmpty) throw Exception('No meal plans returned');
 
       caloriesConsumed = 0.0;
       for (var plan in mealPlans) {
@@ -491,7 +466,7 @@ class _MainScreenState extends State<MainScreen> {
         for (var meal in meals) {
           final mealDateStr = meal['meal_date'] as String?;
           final mealDate = mealDateStr != null
-              ? stringToDate(mealDateStr, formatStr: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", ).toLocal()
+              ? DateTime.parse(mealDateStr).toLocal()
               : DateTime.now().toLocal();
           if (mealDate.isAfter(todayStart) && mealDate.isBefore(todayEnd)) {
             final dietComponents = meal['diet_components'] as List<dynamic>? ?? [];
@@ -516,10 +491,8 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> fetchWeightLossGoal(String username) async {
     try {
       final healthVitalsList = await DataService().fetchHealthVitals(username);
-      debugPrint('Weight loss goal data: $healthVitalsList'); // Debug print
-      if (healthVitalsList.isEmpty) {
-        throw Exception('No health vitals data returned for weight loss goal');
-      }
+      debugPrint('Weight loss goal data: $healthVitalsList');
+      if (healthVitalsList.isEmpty) throw Exception('No health vitals data returned for weight loss goal');
 
       final vitalData = healthVitalsList[0]['attributes'] ?? healthVitalsList[0];
       final initialWeight = (vitalData['WeightInKilograms'] as num?)?.toDouble() ?? 0.0;
@@ -540,10 +513,8 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final response = await ApiService.get('activity?filters[users_permissions_user][username][\$eq]=$username');
       final activityData = response['data'] as List<dynamic>? ?? [];
-      debugPrint('Steps taken data: $activityData'); // Debug print
-      if (activityData.isEmpty) {
-        throw Exception('No activity data returned');
-      }
+      debugPrint('Steps taken data: $activityData');
+      if (activityData.isEmpty) throw Exception('No activity data returned');
 
       setState(() {
         stepsTaken = activityData.isNotEmpty ? (activityData[0]['steps'] as int? ?? 0) : null;
@@ -560,20 +531,55 @@ class _MainScreenState extends State<MainScreen> {
     DateTime dob = DateTime.parse(dateOfBirth);
     DateTime today = DateTime.now().toLocal();
     int age = today.year - dob.year;
-    if (today.month < dob.month || (today.month == dob.month && today.day < dob.day)) {
-      age--;
-    }
+    if (today.month < dob.month || (today.month == dob.month && today.day < dob.day)) age--;
     return age;
   }
 
   String interpretBMI(double bmi, [int? age]) {
-    if (age != null && age < 18) {
-      return 'BMI interpretation for children/teenagers not implemented yet.';
-    } else {
-      if (bmi < 18.5) return 'Under Weight';
-      if (bmi >= 18.5 && bmi < 24.9) return 'Normal Weight';
-      if (bmi >= 25 && bmi < 29.9) return 'Over Weight';
-      return 'Obese';
+    if (age != null && age < 18) return 'BMI interpretation for children/teenagers not implemented yet.';
+    if (bmi < 18.5) return 'Under Weight';
+    if (bmi >= 18.5 && bmi < 24.9) return 'Normal Weight';
+    if (bmi >= 25 && bmi < 29.9) return 'Over Weight';
+    return 'Obese';
+  }
+
+  Future<void> _getMaxRecommendations() async {
+    try {
+      final context = {
+        'user': {
+          'firstName': firstName, // Use firstName from Strapi's users_permissions
+          'username': username, // Use username from Strapi's users_permissions
+        },
+        'recentWorkouts': upcomingWorkouts, // Use existing upcomingWorkouts data
+        'fitnessGoals': upcomingWorkouts.isNotEmpty && upcomingWorkouts[0]['fitness_goals'] != null
+            ? (upcomingWorkouts[0]['fitness_goals'] as List<dynamic>).join(', ') // Fetch fitness_goals from workouts
+            : 'N/A', // Fallback if no goals
+        'healthVitals': {
+          'heartRate': heartRate,
+          'sleepDuration': sleepDuration,
+          'caloriesBurned': caloriesBurned,
+          'caloriesConsumed': caloriesConsumed,
+          'weightLossGoal': weightLossGoal,
+          'stepsTaken': stepsTaken,
+        },
+      };
+      maxRecommendation = await AiService.getMaxRecommendation(
+        'Provide fitness progress recommendation for user',
+        contextData: context,
+        useDatabase: true,
+      );
+      maxTip = await AiService.getMaxRecommendation(
+        'Quick tip for user fitness goals: ${context['fitnessGoals']}',
+        contextData: context,
+        useDatabase: true,
+      );
+      setState(() {});
+    } catch (e) {
+      debugPrint('Error getting Max’s recommendations: $e');
+      setState(() {
+        maxRecommendation = "Hey, I’m Max—No recommendation available right now, but I’m here to help! Add credits to enable full AI features.";
+        maxTip = "Hey, I’m Max—No tip available, but let’s get moving! Add credits to enable full AI features.";
+      });
     }
   }
 
@@ -581,67 +587,107 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context).size;
 
-    // Debug prints to check data for health metrics
     debugPrint('Water Intake Data: $waterIntake');
     debugPrint('Sleep Duration: $sleepDuration');
     debugPrint('Calories Consumed: $caloriesConsumed');
     debugPrint('Weight Loss Goal: $weightLossGoal');
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: TColor.white, // White background (FitOn’s light mode)
       body: SafeArea(
-        child: _buildBodyForTab(selectTab, context), // Use a method to build the body based on the selected tab
+        child: _buildBodyForTab(selectTab, context),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        backgroundColor: Color(0xFFDDA0A0), // Darker dusty rose
-        foregroundColor: Colors.white,
-        elevation: 8,
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          SpeedDialChild(
-            child: const Icon(Icons.fitness_center_outlined, size: 24),
-            backgroundColor: Color(0xFF90EE90), // Darker sage green
-            foregroundColor: Colors.white,
-            label: 'Workout',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => AddScheduleView(date: DateTime.now())),
-              );
-            },
+          SpeedDial(
+            icon: Icons.add,
+            activeIcon: Icons.close,
+            backgroundColor: TColor.darkRose, // Dark rose for energy, buttons (FitOn-inspired)
+            foregroundColor: TColor.white, // White
+            elevation: 8,
+            children: [
+              SpeedDialChild(
+                child: const Icon(Icons.fitness_center_outlined, size: 24),
+                backgroundColor: TColor.freshCyan, // Fresh cyan for vibrancy (FitOn-inspired)
+                foregroundColor: TColor.white, // White
+                label: 'Workout',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AddScheduleView(date: DateTime.now())),
+                  );
+                },
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.restaurant_menu, size: 24),
+                backgroundColor: TColor.darkBeige, // Dark beige for subtle gradients (FitGlide custom)
+                foregroundColor: TColor.white, // White
+                label: 'Meal',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const MealScheduleView()),
+                  );
+                },
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.bedtime, size: 24),
+                backgroundColor: TColor.primaryRed, // Vibrant red for CTAs (FitOn-inspired)
+                foregroundColor: TColor.white, // White
+                label: 'Sleep',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SleepScheduleView()),
+                  );
+                },
+              ),
+            ],
+          ).animate(
+            effects: [
+              FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+              ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+              ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+            ],
           ),
-          SpeedDialChild(
-            child: const Icon(Icons.restaurant_menu, size: 24),
-            backgroundColor: Color(0xFFF5D0A9), // Darker beige
-            foregroundColor: Colors.white,
-            label: 'Meal',
+          SizedBox(width: 10), // Spacing between SpeedDial and Max
+          GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const MealScheduleView()),
-              );
+              _showMaxDialogue(context); // Show dialogue on tap
             },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: TColor.lightGray, // Light gray for cards (FitOn-inspired)
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Dark rose border
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Image.asset(
+                'assets/img/max_avatar.png',
+                width: 50, // Slightly smaller for navigation bar fit
+                height: 50,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(Icons.person, color: TColor.darkRose, size: 50); // Dark rose fallback
+                },
+              ),
+            ).animate(
+              effects: [
+                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0)),
+                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+              ],
+            ),
           ),
-          SpeedDialChild(
-            child: const Icon(Icons.bedtime, size: 24),
-            backgroundColor: Color(0xFFDDA0A0), // Darker dusty rose
-            foregroundColor: Colors.white,
-            label: 'Sleep',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SleepScheduleView()),
-              );
-            },
-          ),
-        ],
-      ).animate(
-        effects: [
-          FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-          ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-          ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -650,7 +696,7 @@ class _MainScreenState extends State<MainScreen> {
           setState(() {
             selectTab = index;
           });
-          _navigateToTab(index, context); // Navigate to the corresponding view
+          _navigateToTab(index, context);
         },
         items: [
           BottomNavigationBarItem(
@@ -663,14 +709,11 @@ class _MainScreenState extends State<MainScreen> {
                   begin: Offset(1.0, 1.0),
                   end: Offset(1.2, 1.2),
                 ),
-                FadeEffect(
-                  duration: 400.ms,
-                  curve: Curves.easeInOut,
-                ),
+                FadeEffect(duration: 400.ms, curve: Curves.easeInOut),
                 ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
               ],
             ),
-            activeIcon: Icon(Icons.home, color: Color(0xFFDDA0A0), size: 28).animate( // Darker dusty rose
+            activeIcon: Icon(Icons.home, color: TColor.darkRose, size: 28).animate( // Dark rose for navigation (FitOn-inspired)
               effects: [
                 FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                 ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -689,14 +732,11 @@ class _MainScreenState extends State<MainScreen> {
                   begin: Offset(1.0, 1.0),
                   end: Offset(1.2, 1.2),
                 ),
-                FadeEffect(
-                  duration: 400.ms,
-                  curve: Curves.easeInOut,
-                ),
+                FadeEffect(duration: 400.ms, curve: Curves.easeInOut),
                 ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
               ],
             ),
-            activeIcon: Icon(Icons.fitness_center, color: Color(0xFFDDA0A0), size: 28).animate( // Darker dusty rose
+            activeIcon: Icon(Icons.fitness_center, color: TColor.darkRose, size: 28).animate( // Dark rose for navigation (FitOn-inspired)
               effects: [
                 FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                 ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -715,14 +755,11 @@ class _MainScreenState extends State<MainScreen> {
                   begin: Offset(1.0, 1.0),
                   end: Offset(1.2, 1.2),
                 ),
-                FadeEffect(
-                  duration: 400.ms,
-                  curve: Curves.easeInOut,
-                ),
+                FadeEffect(duration: 400.ms, curve: Curves.easeInOut),
                 ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
               ],
             ),
-            activeIcon: Icon(Icons.restaurant, color: Color(0xFFDDA0A0), size: 28).animate( // Darker dusty rose
+            activeIcon: Icon(Icons.restaurant, color: TColor.darkRose, size: 28).animate( // Dark rose for navigation (FitOn-inspired)
               effects: [
                 FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                 ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -741,14 +778,11 @@ class _MainScreenState extends State<MainScreen> {
                   begin: Offset(1.0, 1.0),
                   end: Offset(1.2, 1.2),
                 ),
-                FadeEffect(
-                  duration: 400.ms,
-                  curve: Curves.easeInOut,
-                ),
+                FadeEffect(duration: 400.ms, curve: Curves.easeInOut),
                 ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
               ],
             ),
-            activeIcon: Icon(Icons.nightlight_round, color: Color(0xFFDDA0A0), size: 28).animate( // Darker dusty rose
+            activeIcon: Icon(Icons.nightlight_round, color: TColor.darkRose, size: 28).animate( // Dark rose for navigation (FitOn-inspired)
               effects: [
                 FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                 ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -767,14 +801,11 @@ class _MainScreenState extends State<MainScreen> {
                   begin: Offset(1.0, 1.0),
                   end: Offset(1.2, 1.2),
                 ),
-                FadeEffect(
-                  duration: 400.ms,
-                  curve: Curves.easeInOut,
-                ),
+                FadeEffect(duration: 400.ms, curve: Curves.easeInOut),
                 ShakeEffect(duration: 200.ms, curve: Curves.easeOut),
               ],
             ),
-            activeIcon: Icon(Icons.person, color: Color(0xFFDDA0A0), size: 28).animate( // Darker dusty rose
+            activeIcon: Icon(Icons.person, color: TColor.darkRose, size: 28).animate( // Dark rose for navigation (FitOn-inspired)
               effects: [
                 FadeEffect(duration: 300.ms, curve: Curves.easeInOut),
                 ScaleEffect(duration: 300.ms, curve: Curves.easeInOut, begin: Offset(1.0, 1.0), end: Offset(1.1, 1.1)),
@@ -784,12 +815,12 @@ class _MainScreenState extends State<MainScreen> {
             label: "Profile",
           ),
         ],
-        selectedItemColor: Color(0xFFDDA0A0), // Darker dusty rose
+        selectedItemColor: TColor.darkRose, // Dark rose for navigation (FitOn-inspired)
         unselectedItemColor: TColor.gray,
-        backgroundColor: Colors.white,
+        backgroundColor: TColor.white, // White
         elevation: 0, // Remove elevation to avoid white strip
         type: BottomNavigationBarType.fixed,
-        selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFDDA0A0)),
+        selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColor.darkRose),
         unselectedLabelStyle: TextStyle(fontSize: 14, color: TColor.gray),
       ).animate(
         effects: [
@@ -801,7 +832,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // Method to build the body based on the selected tab
   Widget _buildBodyForTab(int tabIndex, BuildContext context) {
     switch (tabIndex) {
       case 0: // Home
@@ -810,25 +840,80 @@ class _MainScreenState extends State<MainScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Section
+              // Header Section (Removed Max, Kept Welcome Message)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: AnimatedTextKit(
-                      animatedTexts: [
-                        TypewriterAnimatedText(
-                          "FitGlide",
-                          textStyle: TextStyle(color: TColor.black, fontSize: 32, fontWeight: FontWeight.bold),
-                          speed: const Duration(milliseconds: 100),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedTextKit(
+                          animatedTexts: [
+                            TypewriterAnimatedText(
+                              "FitGlide",
+                              textStyle: TextStyle(color: TColor.black, fontSize: 32, fontWeight: FontWeight.bold),
+                              speed: const Duration(milliseconds: 100),
+                            ),
+                          ],
+                          totalRepeatCount: 1,
+                        ).animate(
+                          effects: [
+                            FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                            ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                            ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                          ],
                         ),
-                      ],
-                      totalRepeatCount: 1,
-                    ).animate(
-                      effects: [
-                        FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                        ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                        ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                        SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 30,
+                              backgroundColor: TColor.darkRose, // Dark rose for energy (FitOn-inspired)
+                              child: Text(
+                                firstName.isNotEmpty ? firstName[0] : "G",
+                                style: TextStyle(color: TColor.white, fontSize: 24, fontWeight: FontWeight.bold),
+                              ),
+                            ).animate(
+                              effects: [
+                                FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                                ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0)),
+                                ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                              ],
+                            ),
+                            SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Welcome Back,",
+                                    style: TextStyle(color: TColor.gray, fontSize: 16),
+                                  ).animate(
+                                    effects: [
+                                      FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                                      SlideEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(20, 0), end: Offset(0, 0)),
+                                    ],
+                                  ),
+                                  SizedBox(height: 5),
+                                  Text(
+                                    firstName,
+                                    style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.w800),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ).animate(
+                                    effects: [
+                                      FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                                      ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                                      ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -836,7 +921,7 @@ class _MainScreenState extends State<MainScreen> {
                     onPressed: () {
                       print("Notification tapped");
                     },
-                    icon: Icon(Icons.notifications, color: Color(0xFFDDA0A0), size: 30).animate(
+                    icon: Icon(Icons.notifications, color: TColor.darkRose, size: 30).animate(
                       effects: [
                         FadeEffect(duration: 600.ms, curve: Curves.easeInOut),
                         ScaleEffect(duration: 600.ms, curve: Curves.easeInOut, begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0)),
@@ -846,63 +931,13 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-              SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Color(0xFFDDA0A0), // Darker dusty rose
-                    child: Text(
-                      firstName.isNotEmpty ? firstName[0] : "G",
-                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                  ).animate(
-                    effects: [
-                      FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                      ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0)),
-                      ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                    ],
-                  ),
-                  SizedBox(width: 15),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Welcome Back,",
-                          style: TextStyle(color: TColor.gray, fontSize: 16), // Reduced font size for "Welcome Back,"
-                        ).animate(
-                          effects: [
-                            FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                            SlideEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(20, 0), end: Offset(0, 0)),
-                          ],
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          firstName,
-                          style: TextStyle(color: TColor.black, fontSize: 24, fontWeight: FontWeight.w800), // Reduced font size for name
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ).animate(
-                          effects: [
-                            FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                            ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                            ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
               SizedBox(height: 30),
 
-              // Metrics Section (Single Row of 7 Smaller Cards, Full Screen Width with Scroll)
+              // Metrics Section (Single Row of 7 Smaller Cards, Full Screen Width with Scroll, Reduced Size, Boxing Style)
               SizedBox(
                 height: 120, // Match height of all metrics cards
                 child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal, // Horizontal scrolling for all 7 cards
+                  scrollDirection: Axis.horizontal,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
@@ -910,21 +945,21 @@ class _MainScreenState extends State<MainScreen> {
                         icon: Icons.fitness_center,
                         title: "Pending Exercises",
                         subtitle: upcomingWorkouts.isNotEmpty ? upcomingWorkouts.fold(0, (sum, workout) => sum + int.parse(workout['pendingExercises'] ?? '0')).toString() : "0",
-                        gradient: [Color(0xFF90EE90), Color(0xFFF5D0A9)], // Darker sage green to darker beige
+                        gradient: [TColor.lightIndigo, TColor.primaryRed], // Fresh cyan to dark beige (FitOn-inspired)
                       ),
                       SizedBox(width: 10),
                       _buildSmallMetricCard(
                         icon: Icons.local_fire_department,
                         title: "Calories Burned",
                         subtitle: caloriesBurned != null ? "${caloriesBurned!.toStringAsFixed(0)} kCal" : "N/A",
-                        gradient: [Color(0xFFDDA0A0), Color(0xFF90EE90)], // Darker dusty rose to darker sage green
+                        gradient: [TColor.primaryRed, TColor.lightIndigo], // Primary red to fresh cyan (FitOn-inspired)
                       ),
                       SizedBox(width: 10),
                       _buildSmallMetricCard(
                         icon: Icons.directions_walk, // Steps Taken
                         title: "Steps Taken",
                         subtitle: stepsTaken != null ? "$stepsTaken steps" : "N/A",
-                        gradient: [Color(0xFFF5D0A9), Color(0xFFDDA0A0)], // Darker beige to darker dusty rose
+                        gradient: [TColor.lightIndigo, TColor.primaryRed], // Dark beige to primary red (FitOn-inspired)
                       ),
                       SizedBox(width: 10),
                       _buildSmallHealthMetricCard(
@@ -933,9 +968,9 @@ class _MainScreenState extends State<MainScreen> {
                           title: "",
                           value: waterIntake.isNotEmpty ? (waterIntake.fold(0.0, (sum, item) => sum + double.parse(item['subtitle'].replaceAll('ml', '')) / 2000)) : 0.0,
                           goal: "2000ml",
-                          color: Color(0xFF90EE90), // Darker sage green
+                          color: TColor.primaryRed, // Fresh cyan for vibrancy (FitOn-inspired)
                         ),
-                        color: Color(0xFF90EE90), // Darker sage green for water
+                        color: TColor.primaryRed.withOpacity(0.2), // Subtle fresh cyan
                       ),
                       SizedBox(width: 10),
                       _buildSmallHealthMetricCard(
@@ -944,9 +979,9 @@ class _MainScreenState extends State<MainScreen> {
                           title: "",
                           value: sleepDuration != "N/A" ? (double.tryParse(sleepDuration.replaceAll('h', '')) ?? 0) / 8 : 0.0,
                           goal: "8h",
-                          color: Color(0xFFF5D0A9), // Darker beige
+                          color: TColor.primaryRed, // Dark beige for subtle gradients (FitGlide custom)
                         ),
-                        color: Color(0xFFF5D0A9), // Darker beige for sleep
+                        color: TColor.primaryRed, // Subtle dark beige
                       ),
                       SizedBox(width: 10),
                       _buildSmallHealthMetricCard(
@@ -955,9 +990,9 @@ class _MainScreenState extends State<MainScreen> {
                           title: "",
                           value: caloriesConsumed != null ? (caloriesConsumed! / 2000) : 0.0,
                           goal: "2000kCal",
-                          color: Color(0xFFDDA0A0), // Darker dusty rose
+                          color: TColor.primaryRed, // Primary red for energy (FitOn-inspired)
                         ),
-                        color: Color(0xFFDDA0A0), // Darker dusty rose for calories
+                        color: TColor.primaryRed.withOpacity(0.2), // Subtle primary red
                       ),
                       SizedBox(width: 10),
                       _buildSmallHealthMetricCard(
@@ -966,9 +1001,9 @@ class _MainScreenState extends State<MainScreen> {
                           title: "",
                           value: weightLossGoal != null ? (1 - (weightLossGoal! / 10)) : 0.0,
                           goal: "10kg",
-                          color: Color(0xFFF5D0A9), // Darker beige
+                          color: TColor.primaryRed, // Dark beige for subtle gradients (FitGlide custom)
                         ),
-                        color: Color(0xFFDDA0A0), // Darker beige for weight loss
+                        color: TColor.primaryRed.withOpacity(0.2), // Subtle primary red
                       ),
                     ],
                   ),
@@ -982,12 +1017,13 @@ class _MainScreenState extends State<MainScreen> {
               ),
               SizedBox(height: 30),
 
-              // Reduced-Height BMI Card
-              Container( // Removed Card container as requested
+              // BMI Card (Boxing Style, Reduced Size)
+              Container(
                 width: MediaQuery.of(context).size.width, // Full screen width
                 height: MediaQuery.of(context).size.height * 0.30, // Reduced height for BMI card
                 decoration: BoxDecoration(
-                  color: Colors.white, // Use white background directly
+                  color: TColor.lightGray, // White background
+                  borderRadius: BorderRadius.circular(15),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
@@ -1003,7 +1039,7 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Text(
                         "BMI",
-                        style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.bold), // Slightly smaller text for title
+                        style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.bold),
                       ).animate(
                         effects: [
                           FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
@@ -1011,13 +1047,13 @@ class _MainScreenState extends State<MainScreen> {
                           ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
                         ],
                       ),
-                      SizedBox(height: 5), // Reduced spacing between "BMI" and "Obese"
+                      SizedBox(height: 5),
                       Text(
                         bmiCategory.isNotEmpty ? bmiCategory : "No BMI data",
-                        style: TextStyle(color: TColor.black, fontSize: 14, fontWeight: FontWeight.bold), // Slightly smaller text for category
+                        style: TextStyle(color: TColor.black, fontSize: 14, fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 5), // Reduced spacing
+                      SizedBox(height: 5),
                       SizedBox(
                         width: 150, // Reduced width for compactness
                         height: 150, // Further reduced height for compactness
@@ -1033,9 +1069,9 @@ class _MainScreenState extends State<MainScreen> {
                               showAxisLine: false,
                               radiusFactor: 0.9, // Further reduce gauge size to fit reduced height
                               ranges: [
-                                GaugeRange(startValue: 0, endValue: 17.5, color: Color(0xFF90EE90).withOpacity(0.8), startWidth: 8, endWidth: 8), // Darker beige, smaller width
-                                GaugeRange(startValue: 18.5, endValue: 24.9, color: Color(0xFFF5D0A9).withOpacity(0.8), startWidth: 8, endWidth: 8), // Darker sage green, smaller width
-                                GaugeRange(startValue: 26.0, endValue: 40, color: Color(0xFFDDA0A0).withOpacity(0.8), startWidth: 8, endWidth: 8), // Darker dusty rose, smaller width
+                                GaugeRange(startValue: 0, endValue: 17.5, color: TColor.lightIndigo.withOpacity(0.8), startWidth: 8, endWidth: 8), // Fresh cyan
+                                GaugeRange(startValue: 18.5, endValue: 24.9, color: TColor.darkBeige.withOpacity(0.8), startWidth: 8, endWidth: 8), // Dark beige
+                                GaugeRange(startValue: 26.0, endValue: 40, color: TColor.primaryRed.withOpacity(0.8), startWidth: 8, endWidth: 8), // Primary red
                               ],
                               pointers: [
                                 MarkerPointer(
@@ -1052,7 +1088,7 @@ class _MainScreenState extends State<MainScreen> {
                                 GaugeAnnotation(
                                   widget: Text(
                                     bmi != null && bmi! >= 0 && bmi! <= 40 ? bmi!.toStringAsFixed(1) : "24.5",
-                                    style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.bold), // Further smaller text
+                                    style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
                                   positionFactor: 0.1, // Center the BMI number in the arc
                                   angle: 90, // Align horizontally for center of arc
@@ -1064,7 +1100,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ],
                   ),
-                  color: Color(0xFFF5D0A9), // Darker beige for BMI
+                  color: TColor.darkBeige.withOpacity(0.2), // Subtle dark beige
                 ),
               ).animate(
                 effects: [
@@ -1075,76 +1111,83 @@ class _MainScreenState extends State<MainScreen> {
               ),
               SizedBox(height: 30),
 
-              // Charts and Badges Section
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Health Trends",
-                        style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
-                      ).animate(
-                        effects: [
-                          FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                          ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                          ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                        ],
+              // Charts and Badges Section (Boxing Style)
+              Container(
+                decoration: BoxDecoration(
+                  color: TColor.white, // White background
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.all(15),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Health Trends",
+                      style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
+                    ).animate(
+                      effects: [
+                        FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                        ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                        ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                      ],
+                    ),
+                    SizedBox(height: 20),
+                    SizedBox(
+                      height: 180, // Explicit size to ensure layout
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 6,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                          color: TColor.lightGray, // Light gray for cards (FitOn-inspired)
+                        ),
+                        child: LineChart(
+                          lineChartData,
+                        ).animate(
+                          effects: [
+                            FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
+                            ScaleEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                            ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
+                          ],
+                        ),
                       ),
-                      SizedBox(height: 20),
-                      SizedBox(
-                        height: 180, // Explicit size to ensure layout
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 6,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: LineChart(
-                            lineChartData,
-                          ).animate(
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      "Badges",
+                      style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
+                    ).animate(
+                      effects: [
+                        FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
+                        ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
+                        ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
+                      ],
+                    ),
+                    SizedBox(height: 15),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: badges.map((badge) => _buildBadge(badge)).toList().animate(
                             effects: [
                               FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
                               ScaleEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
                               ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
                             ],
                           ),
-                        ),
-                      ),
-                      SizedBox(height: 20),
-                      Text(
-                        "Badges",
-                        style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
-                      ).animate(
-                        effects: [
-                          FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                          ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                          ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                        ],
-                      ),
-                      SizedBox(height: 15),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: badges.map((badge) => _buildBadge(badge)).toList().animate(
-                              effects: [
-                                FadeEffect(duration: 1000.ms, curve: Curves.easeInOut),
-                                ScaleEffect(duration: 1000.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                                ShakeEffect(duration: 500.ms, curve: Curves.easeOut),
-                              ],
-                            ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ).animate(
                 effects: [
@@ -1166,11 +1209,10 @@ class _MainScreenState extends State<MainScreen> {
       case 4: // Profile
         return const ProfileView();
       default:
-        return  Center(child: Text('Unknown Tab', style: TextStyle(color: TColor.black)));
+        return Center(child: Text('Unknown Tab', style: TextStyle(color: TColor.black)));
     }
   }
 
-  // Method to navigate to the corresponding tab view
   void _navigateToTab(int index, BuildContext context) {
     switch (index) {
       case 0: // Home (already on this screen, no navigation needed)
@@ -1202,14 +1244,20 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Widget _buildSmallMetricCard({required IconData icon, required String title, required String subtitle, required List<Color> gradient}) {
+  Widget _buildSmallMetricCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required List<Color> gradient,
+  }) {
     return SizedBox(
       width: 160, // Match size of all metrics cards
       height: 120, // Match size of all metrics cards
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+          color: TColor.lightGray, // Light gray background
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: TColor.primaryRed, width: 1), // Red border
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -1218,21 +1266,21 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
-        padding: EdgeInsets.all(10), // Slightly reduced padding for compactness
+        padding: EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center, // Center content vertically
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 20), // Slightly smaller icon
-            SizedBox(height: 5), // Reduced spacing
+            Icon(icon, color: Colors.black, size: 20), // Black icon
+            SizedBox(height: 5),
             Text(
               title,
-              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), // Smaller text
+              style: TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold), // Black text
             ),
-            SizedBox(height: 2), // Reduced spacing
+            SizedBox(height: 2),
             Text(
               subtitle,
-              style: TextStyle(color: Colors.white70, fontSize: 12), // Smaller text
+              style: TextStyle(color: Colors.black54, fontSize: 12), // Slightly faded black for subtitle
             ),
           ],
         ),
@@ -1247,12 +1295,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildProgressIndicator({required String title, required double value, required String goal, required Color color}) {
-    return SizedBox( // Explicit size to ensure layout
-      width: 140, // Slightly reduced width for compactness in smaller cards
+    return SizedBox(
+      width: 140,
       child: Container(
-        padding: EdgeInsets.all(8), // Reduced padding for compactness
+        padding: EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: TColor.white,
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
@@ -1264,24 +1312,24 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min, // Ensure minimum space
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (title.isNotEmpty)
               Text(
                 title,
-                style: TextStyle(color: TColor.black, fontSize: 14, fontWeight: FontWeight.bold), // Smaller text
+                style: TextStyle(color: TColor.black, fontSize: 14, fontWeight: FontWeight.bold),
               ),
-            SizedBox(height: 4), // Reduced spacing
+            SizedBox(height: 4),
             LinearProgressIndicator(
               value: value.clamp(0.0, 1.0),
               backgroundColor: TColor.lightGray,
               color: color,
-              minHeight: 4, // Smaller height
+              minHeight: 4,
             ),
-            SizedBox(height: 4), // Reduced spacing
+            SizedBox(height: 4),
             Text(
               "${(value * 100).toStringAsFixed(0)}% of $goal",
-              style: TextStyle(color: TColor.gray, fontSize: 10), // Smaller text
+              style: TextStyle(color: TColor.gray, fontSize: 10), // Gray for text (FitOn-inspired)
             ),
           ],
         ),
@@ -1296,12 +1344,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildBadge(Map<String, dynamic> badge) {
-    return SizedBox( // Explicit size to ensure layout
-      width: 120, // Smaller badge size for compactness
+    return SizedBox(
+      width: 120,
       child: Container(
         padding: EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: TColor.white,
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
@@ -1315,11 +1363,11 @@ class _MainScreenState extends State<MainScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              badge['icon'],
+              badge['icon'] ?? 'assets/img/default_meal.png', // Fallback to default_meal.png if badge icon fails
               width: 20,
               height: 20,
               errorBuilder: (context, error, stackTrace) {
-                return Icon(Icons.star, color: Color(0xFFDDA0A0), size: 20); // Darker dusty rose fallback
+                return Icon(Icons.star, color: TColor.darkRose, size: 20); // Dark rose fallback (FitOn-inspired)
               },
             ),
             SizedBox(width: 8),
@@ -1339,44 +1387,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildHealthMetricPage({required String title, required Widget content, required Color color}) {
-    final media = MediaQuery.of(context).size;
-    return Container(
-      width: media.width, // Full screen width for each page
-      height: media.height * 0.25, // Reduced height to match new card size
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2), // Subtle background color for each page
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min, // Ensure minimum space
-        children: [
-          Text(
-            title,
-            style: TextStyle(color: TColor.black, fontSize: 20, fontWeight: FontWeight.bold), // Slightly smaller text
-          ).animate(
-            effects: [
-              FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-              ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-              ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-            ],
-          ),
-          SizedBox(height: 5), // Reduced spacing for compactness
-          content,
-        ],
-      ),
-    );
-  }
-
   Widget _buildSmallHealthMetricCard({required String title, required Widget content, required Color color}) {
     return SizedBox(
       width: 160, // Match size of all metrics cards
@@ -1393,16 +1403,16 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
-        padding: EdgeInsets.all(10), // Slightly reduced padding for compactness
+        padding: EdgeInsets.all(10),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               title,
-              style: TextStyle(color: TColor.black, fontSize: 14, fontWeight: FontWeight.bold), // Smaller text
+              style: TextStyle(color: TColor.black, fontSize: 14, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 5), // Reduced spacing
+            SizedBox(height: 5),
             content,
           ],
         ),
@@ -1416,7 +1426,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildBMIMetricCard({ required Widget content, required Color color}) {
+  Widget _buildBMIMetricCard({required Widget content, required Color color}) {
     return SizedBox(
       width: 160, // Match size of all metrics cards
       height: 120, // Match size of all metrics cards
@@ -1432,11 +1442,11 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
-        padding: EdgeInsets.all(10), // Slightly reduced padding for compactness
+        padding: EdgeInsets.all(10),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(height: 5), // Reduced spacing
+            SizedBox(height: 5),
             content,
           ],
         ),
@@ -1448,5 +1458,84 @@ class _MainScreenState extends State<MainScreen> {
         ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
       ],
     );
+  }
+
+  void _showMaxDialogue(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TColor.lightGray, // Light gray for cards (FitOn-inspired)
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+          side: BorderSide(color: TColor.darkRose, width: 1), // Dark rose border
+        ),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.8, // 80% of screen width
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Image.asset(
+                    'assets/img/max_avatar.png',
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(Icons.person, color: TColor.darkRose, size: 50); // Dark rose fallback
+                    },
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      maxRecommendation ?? 'Hey, I’m Max! No recommendation available right now, but I’m here to help! Add credits to enable full AI features.',
+                      style: TextStyle(color: TColor.black, fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Image.asset(
+                    'assets/img/max_avatar.png',
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(Icons.person, color: TColor.darkRose, size: 50); // Dark rose fallback
+                    },
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      maxTip ?? 'Hey, I’m Max! No tip available, but let’s get moving! Add credits to enable full AI features.',
+                      style: TextStyle(color: TColor.black, fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Close',
+              style: TextStyle(color: TColor.darkRose, fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    ).then((_) {
+      // Optional: Re-trigger recommendations after closing to ensure freshness
+      _getMaxRecommendations();
+    });
   }
 }
