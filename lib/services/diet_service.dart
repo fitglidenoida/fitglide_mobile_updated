@@ -22,7 +22,7 @@ class DietService {
       final templatesResponse = await ApiService.get(
         'diet-templates?populate=meals.diet_components'
         '&filters[diet_preference][\$eq]=$dietPreference'
-        '&filters[diet_template_id][\$eq]=${dietGoal.toLowerCase().replaceAll('-', '_')}_${mealsPerDay}'
+        '&filters[diet_template_id][\$eq]=${dietGoal.toLowerCase().replaceAll('-', '_')}_$mealsPerDay'
       );
       final List<dynamic>? allTemplates = templatesResponse['data'];
       if (allTemplates == null || allTemplates.isEmpty) {

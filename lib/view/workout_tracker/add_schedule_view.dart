@@ -15,206 +15,146 @@ class AddScheduleView extends StatefulWidget {
 }
 
 class _AddScheduleViewState extends State<AddScheduleView> {
+  int _currentStep = 0;
   final _formKey = GlobalKey<FormState>();
   String? _sportType;
   String? _difficulty;
   int? _duration;
   double? _distancePlanned;
   double? _elevationPlanned;
-  int? _reps;
-  int? _sets;
-  bool _isPremium = false; // Assume user status check here
-  Map<String, dynamic>? _selectedBike; // Updated to Map<String, dynamic>
   DateTime _scheduledDate = DateTime.now();
-  List<Map<String, dynamic>> exercises = []; // Explicitly typed as Map<String, dynamic>
+  List<Map<String, dynamic>> exercises = [];
+  String? maxTip;
 
   @override
   void initState() {
     super.initState();
-    _loadRentalBikes();
+    _scheduledDate = widget.date;
+    _loadMaxTip();
   }
 
-  Future<void> _loadRentalBikes() async {
-    try {
-      final response = await ApiService.get('rental-bikes');
-      debugPrint('Rental Bikes Response: $response'); // Debug log to inspect data
-      final dynamic data = response['data'];
-      if (data is List) {
-        setState(() {
-          // Safely cast each bike to Map<String, dynamic>
-          final bikes = data.map((item) {
-            if (item is Map) {
-              return Map<String, dynamic>.fromEntries(
-                item.entries.map((entry) {
-                  final key = entry.key.toString(); // Convert key to string
-                  return MapEntry<String, dynamic>(key, entry.value);
-                }),
-              );
-            }
-            debugPrint('Unexpected bike item type: $item');
-            return <String, dynamic>{}; // Default empty map for non-Map items
-          }).whereType<Map<String, dynamic>>().toList();
-          _selectedBike = bikes.isNotEmpty ? bikes.first : null;
-        });
-      } else {
-        debugPrint('Unexpected data type for "data" in rental-bikes: $data');
-        setState(() {
-          _selectedBike = null;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading rental bikes: $e');
-    }
+  Future<void> _loadMaxTip() async {
+    setState(() => maxTip = "Max says: Start with a ${_sportType ?? 'Gym'} workout for ${_duration ?? 30} minutes!");
+  }
+
+  void _showMaxDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TColor.cardLight,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: TColor.primary)),
+        content: Row(
+          children: [
+            Image.asset('assets/img/max_avatar.png', width: 50, height: 50),
+            SizedBox(width: 10),
+            Expanded(child: Text(maxTip ?? "Max is thinking...", style: TextStyle(color: TColor.textPrimary))),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Close", style: TextStyle(color: TColor.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAddExerciseDialog({Map<String, dynamic>? updateExercise}) {
-    String? exerciseName = updateExercise?['name'] ?? '';
-    int? duration = updateExercise?['duration'] ?? 0;
-    int? caloriesPerMinute = updateExercise?['calories_per_minute'] ?? 0;
-    int? reps = updateExercise?['reps'] ?? 0;
-    int? sets = updateExercise?['sets'] ?? 0;
+    String? exerciseName = updateExercise?['name'];
+    int? duration = updateExercise?['duration'];
+    int? caloriesPerMinute = updateExercise?['calories_per_minute'];
+    int? reps = updateExercise?['reps'];
+    int? sets = updateExercise?['sets'];
     String? category = updateExercise?['category'] ?? 'Warmup';
 
     showDialog(
       context: context,
       builder: (context) {
-        final formKey = GlobalKey<FormState>(); // Create a new form key for the dialog
+        final formKey = GlobalKey<FormState>();
         return AlertDialog(
-          title: Text(updateExercise == null ? 'Add Exercise' : 'Edit Exercise', style: TextStyle(color: TColor.black)),
+          title: Text(updateExercise == null ? 'Add Exercise' : 'Edit Exercise', style: TextStyle(color: TColor.textPrimary)),
           content: Form(
-            key: formKey, // Use the new form key
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  initialValue: exerciseName,
-                  decoration: InputDecoration(
-                    labelText: 'Exercise Name',
-                    filled: true,
-                    fillColor: TColor.lightGray, // Light gray
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    initialValue: exerciseName,
+                    decoration: InputDecoration(labelText: 'Exercise Name', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    onSaved: (value) => exerciseName = value,
+                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                   ),
-                  onSaved: (value) => exerciseName = value,
-                  validator: (value) => value == null || value.isEmpty ? 'Please enter exercise name' : null,
-                ),
-                SizedBox(height: 10),
-                TextFormField(
-                  initialValue: duration.toString(),
-                  decoration: InputDecoration(
-                    labelText: 'Duration (minutes)',
-                    filled: true,
-                    fillColor: TColor.lightGray, // Light gray
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    initialValue: duration?.toString(),
+                    decoration: InputDecoration(labelText: 'Duration (min)', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                    onSaved: (value) => duration = int.tryParse(value ?? '0'),
+                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                   ),
-                  keyboardType: TextInputType.number,
-                  onSaved: (value) => duration = int.tryParse(value ?? '0'),
-                  validator: (value) => value == null || value.isEmpty ? 'Please enter duration' : null,
-                ),
-                SizedBox(height: 10),
-                TextFormField(
-                  initialValue: caloriesPerMinute.toString(),
-                  decoration: InputDecoration(
-                    labelText: 'Calories/Min',
-                    filled: true,
-                    fillColor: TColor.lightGray, // Light gray
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    initialValue: caloriesPerMinute?.toString(),
+                    decoration: InputDecoration(labelText: 'Calories/Min', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                    onSaved: (value) => caloriesPerMinute = int.tryParse(value ?? '0'),
+                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                   ),
-                  keyboardType: TextInputType.number,
-                  onSaved: (value) => caloriesPerMinute = int.tryParse(value ?? '0'),
-                  validator: (value) => value == null || value.isEmpty ? 'Please enter calories/min' : null,
-                ),
-                SizedBox(height: 10),
-                if (_sportType == 'Gym')
-                  Column(
-                    children: [
-                      TextFormField(
-                        initialValue: reps.toString(),
-                        decoration: InputDecoration(
-                          labelText: 'Reps',
-                          filled: true,
-                          fillColor: TColor.lightGray, // Light gray
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        keyboardType: TextInputType.number,
-                        onSaved: (value) => reps = int.tryParse(value ?? '0') ?? 0, // Handle null case
-                        validator: (value) => value == null || value.isEmpty ? 'Please enter reps' : null,
-                      ),
-                      SizedBox(height: 10),
-                      TextFormField(
-                        initialValue: sets.toString(),
-                        decoration: InputDecoration(
-                          labelText: 'Sets',
-                          filled: true,
-                          fillColor: TColor.lightGray, // Light gray
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        keyboardType: TextInputType.number,
-                        onSaved: (value) => sets = int.tryParse(value ?? '0') ?? 0, // Handle null case
-                        validator: (value) => value == null || value.isEmpty ? 'Please enter sets' : null,
-                      ),
-                    ],
+                  if (_sportType == 'Gym') ...[
+                    SizedBox(height: 10),
+                    TextFormField(
+                      initialValue: reps?.toString(),
+                      decoration: InputDecoration(labelText: 'Reps', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onSaved: (value) => reps = int.tryParse(value ?? '0'),
+                    ),
+                    SizedBox(height: 10),
+                    TextFormField(
+                      initialValue: sets?.toString(),
+                      decoration: InputDecoration(labelText: 'Sets', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onSaved: (value) => sets = int.tryParse(value ?? '0'),
+                    ),
+                  ],
+                  SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: category,
+                    decoration: InputDecoration(labelText: 'Category', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    items: ['Warmup', 'Workout', 'Stretching'].map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                    onChanged: (value) => category = value,
                   ),
-                SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: category,
-                  decoration: InputDecoration(
-                    labelText: 'Category',
-                    filled: true,
-                    fillColor: TColor.lightGray, // Light gray
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  items: ['Warmup', 'Workout', 'Stretching'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value, style: TextStyle(color: TColor.black)),
-                    );
-                  }).toList(),
-                  onChanged: (value) => category = value,
-                  validator: (value) => value == null ? 'Please select a category' : null,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: TColor.gray)),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: TColor.textSecondary))),
             ElevatedButton(
               onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  formKey.currentState?.save();
+                if (formKey.currentState!.validate()) {
+                  formKey.currentState!.save();
                   setState(() {
+                    final newExercise = {
+                      'name': exerciseName ?? 'New Exercise',
+                      'duration': duration ?? 0,
+                      'calories_per_minute': caloriesPerMinute ?? 0,
+                      'reps': reps ?? 0,
+                      'sets': sets ?? 0,
+                      'category': category ?? 'Warmup',
+                    };
                     if (updateExercise != null) {
-                      final index = exercises.indexOf(updateExercise);
-                      exercises[index] = {
-                        'name': exerciseName ?? 'New Exercise',
-                        'duration': duration ?? 0,
-                        'calories_per_minute': caloriesPerMinute ?? 0,
-                        'reps': reps ?? 0,
-                        'sets': sets ?? 0,
-                        'category': category ?? 'Warmup',
-                      };
+                      exercises[exercises.indexOf(updateExercise)] = newExercise;
                     } else {
-                      exercises.add({
-                        'name': exerciseName ?? 'New Exercise',
-                        'duration': duration ?? 0,
-                        'calories_per_minute': caloriesPerMinute ?? 0,
-                        'reps': reps ?? 0,
-                        'sets': sets ?? 0,
-                        'category': category ?? 'Warmup',
-                      });
+                      exercises.add(newExercise);
                     }
                   });
                   Navigator.pop(context);
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TColor.darkRose, // Darker dusty rose
-                foregroundColor: TColor.white, // White
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(updateExercise == null ? 'Submit' : 'Update'),
+              style: ElevatedButton.styleFrom(backgroundColor: TColor.primary, foregroundColor: TColor.textPrimaryDark),
+              child: Text(updateExercise == null ? 'Add' : 'Update'),
             ),
           ],
         );
@@ -242,342 +182,138 @@ class _AddScheduleViewState extends State<AddScheduleView> {
         Navigator.pop(context);
       } catch (e) {
         debugPrint('Error creating workout: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create workout: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create workout: $e')));
       }
     }
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _scheduledDate,
-      firstDate: DateTime(2023),
-      lastDate: DateTime(2030),
-    );
-    if (picked != null && picked != _scheduledDate) {
-      setState(() {
-        _scheduledDate = picked;
-      });
-    }
-  }
-
-  void _removeExercise(int index) {
-    setState(() {
-      exercises.removeAt(index);
-    });
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(context: context, initialDate: _scheduledDate, firstDate: DateTime(2023), lastDate: DateTime(2030));
+    if (picked != null) setState(() => _scheduledDate = picked);
   }
 
   @override
   Widget build(BuildContext context) {
-    var media = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: TColor.white, // White background
+      backgroundColor: TColor.backgroundLight,
       appBar: AppBar(
-        title: const Text('Add Schedule'),
-        backgroundColor: TColor.white, // White
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: TColor.black), // Black
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: Text('Add Workout', style: TextStyle(color: TColor.textPrimary)),
+        backgroundColor: TColor.backgroundLight,
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios, color: TColor.textPrimary), onPressed: () => Navigator.pop(context)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Workout Details',
-                style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
-              ).animate(
-                effects: [
-                  FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                  ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                  ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                ],
-              ),
-              SizedBox(height: 20),
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                color: TColor.lightGray, // Light gray
-                child: Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        value: _sportType,
-                        decoration: InputDecoration(
-                          labelText: 'Sport Type',
-                          border: InputBorder.none,
-                        ),
-                        items: ['Cycling', 'Running', 'Gym'].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value, style: TextStyle(color: TColor.black)),
-                          );
-                        }).toList(),
-                        onChanged: (value) => setState(() => _sportType = value),
-                        validator: (value) => value == null ? 'Please select a sport type' : null,
-                      ),
-                      SizedBox(height: 15),
-                      DropdownButtonFormField<String>(
-                        value: _difficulty,
-                        decoration: InputDecoration(
-                          labelText: 'Difficulty',
-                          border: InputBorder.none,
-                        ),
-                        items: ['Easy', 'Medium', 'Hard'].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value, style: TextStyle(color: TColor.black)),
-                          );
-                        }).toList(),
-                        onChanged: (value) => setState(() => _difficulty = value),
-                        validator: (value) => value == null ? 'Please select a difficulty' : null,
-                      ),
-                      SizedBox(height: 15),
-                      TextFormField(
-                        decoration: InputDecoration(
-                          labelText: 'Duration (minutes)',
-                          border: InputBorder.none,
-                        ),
-                        keyboardType: TextInputType.number,
-                        onSaved: (value) => _duration = int.tryParse(value ?? '') ?? 0, // Handle null case
-                        validator: (value) => value == null || value.isEmpty ? 'Please enter duration' : null,
-                      ),
-                      if (_sportType == 'Cycling' || _sportType == 'Running')
-                        Column(
-                          children: [
-                            SizedBox(height: 15),
-                            TextFormField(
-                              decoration: InputDecoration(
-                                labelText: 'Distance Planned (km)',
-                                border: InputBorder.none,
-                              ),
-                              keyboardType: TextInputType.number,
-                              onSaved: (value) => _distancePlanned = double.tryParse(value ?? '') ?? 0.0, // Handle null case
-                              validator: (value) => value == null || value.isEmpty ? 'Please enter distance' : null,
-                            ),
-                            SizedBox(height: 15),
-                            TextFormField(
-                              decoration: InputDecoration(
-                                labelText: 'Elevation Planned (m)',
-                                border: InputBorder.none,
-                              ),
-                              keyboardType: TextInputType.number,
-                              onSaved: (value) => _elevationPlanned = double.tryParse(value ?? '') ?? 0.0, // Handle null case
-                              validator: (value) => value == null || value.isEmpty ? 'Please enter elevation' : null,
-                            ),
-                          ],
-                        ),
-                      if (_sportType == 'Gym')
-                        Column(
-                          children: [
-                            SizedBox(height: 15),
-                            TextFormField(
-                              decoration: InputDecoration(
-                                labelText: 'Reps',
-                                border: InputBorder.none,
-                              ),
-                              keyboardType: TextInputType.number,
-                              onSaved: (value) => _reps = int.tryParse(value ?? '') ?? 0, // Handle null case
-                              validator: (value) => value == null || value.isEmpty ? 'Please enter reps' : null,
-                            ),
-                            SizedBox(height: 15),
-                            TextFormField(
-                              decoration: InputDecoration(
-                                labelText: 'Sets',
-                                border: InputBorder.none,
-                              ),
-                              keyboardType: TextInputType.number,
-                              onSaved: (value) => _sets = int.tryParse(value ?? '') ?? 0, // Handle null case
-                              validator: (value) => value == null || value.isEmpty ? 'Please enter sets' : null,
-                            ),
-                          ],
-                        ),
-                      SizedBox(height: 15),
-                      InkWell(
-                        onTap: () => _selectDate(context),
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: 'Scheduled Date',
-                            border: InputBorder.none,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                DateFormat('dd/MM/yyyy').format(_scheduledDate),
-                                style: TextStyle(color: TColor.black),
-                              ),
-                              Icon(Icons.calendar_today, color: TColor.darkRose), // Darker dusty rose
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (_sportType == 'Cycling' || _sportType == 'Running')
-                        if (_isPremium)
-                          Column(
-                            children: [
-                              SizedBox(height: 15),
-                              DropdownButtonFormField<Map<String, dynamic>>(
-                                value: _selectedBike,
-                                decoration: InputDecoration(
-                                  labelText: 'Rental Bike',
-                                  border: InputBorder.none,
-                                ),
-                                items: (_selectedBike != null ? [_selectedBike] : []).map((bike) {
-                                  return DropdownMenuItem<Map<String, dynamic>>(
-                                    value: bike,
-                                    child: Text(bike['name'] ?? 'N/A', style: TextStyle(color: TColor.black)),
-                                  );
-                                }).toList(),
-                                onChanged: (value) => setState(() => _selectedBike = value),
-                                validator: (value) => value == null ? 'Please select a bike' : null,
-                              ),
-                            ],
-                          ),
-                    ],
+      body: Form(
+        key: _formKey,
+        child: Stepper(
+          currentStep: _currentStep,
+          onStepContinue: () {
+            if (_currentStep < 2 && _formKey.currentState!.validate()) {
+              _formKey.currentState!.save();
+              setState(() => _currentStep++);
+              _loadMaxTip();
+            } else if (_currentStep == 2) {
+              _submitSchedule();
+            }
+          },
+          onStepCancel: () => _currentStep > 0 ? setState(() => _currentStep--) : Navigator.pop(context),
+          steps: [
+            Step(
+              title: Text("Basics", style: TextStyle(color: TColor.textPrimary)),
+              content: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _sportType,
+                    decoration: InputDecoration(labelText: 'Sport Type', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    items: ['Cycling', 'Running', 'Gym'].map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                    onChanged: (value) => setState(() => _sportType = value),
+                    validator: (value) => value == null ? 'Required' : null,
                   ),
-                ),
-              ).animate(
-                effects: [
-                  FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                  ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                  ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                ],
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Exercises',
-                style: TextStyle(color: TColor.black, fontSize: 22, fontWeight: FontWeight.bold),
-              ).animate(
-                effects: [
-                  FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                  ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                  ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                ],
-              ),
-              SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: TColor.lightGray, // Light gray
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: TColor.darkRose.withOpacity(0.3)), // Darker dusty rose
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
+                  SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: _difficulty,
+                    decoration: InputDecoration(labelText: 'Difficulty', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    items: ['Easy', 'Medium', 'Hard'].map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                    onChanged: (value) => setState(() => _difficulty = value),
+                    validator: (value) => value == null ? 'Required' : null,
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    decoration: InputDecoration(labelText: 'Duration (min)', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                    onSaved: (value) => _duration = int.tryParse(value ?? '0'),
+                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                  if (_sportType == 'Cycling' || _sportType == 'Running') ...[
+                    SizedBox(height: 10),
+                    TextFormField(
+                      decoration: InputDecoration(labelText: 'Distance (km)', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onSaved: (value) => _distancePlanned = double.tryParse(value ?? '0'),
+                    ),
+                    SizedBox(height: 10),
+                    TextFormField(
+                      decoration: InputDecoration(labelText: 'Elevation (m)', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onSaved: (value) => _elevationPlanned = double.tryParse(value ?? '0'),
                     ),
                   ],
-                ),
-                child: Column(
-                  children: [
-                    ...exercises.map((exercise) => Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                      decoration: BoxDecoration(
-                        color: TColor.white, // White for contrast within the box
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: TColor.darkRose.withOpacity(0.2)), // Subtle darker dusty rose
-                      ),
+                ],
+              ).animate(effects: [FadeEffect(duration: 800.ms)]),
+            ),
+            Step(
+              title: Text("Exercises", style: TextStyle(color: TColor.textPrimary)),
+              content: Column(
+                children: [
+                  ...exercises.map((e) => ListTile(
+                    title: Text("${e['category']} - ${e['name']}", style: TextStyle(color: TColor.textPrimary)),
+                    subtitle: Text("Duration: ${e['duration']} min", style: TextStyle(color: TColor.textSecondary)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(icon: Icon(Icons.edit, color: TColor.primary), onPressed: () => _showAddExerciseDialog(updateExercise: e)),
+                        IconButton(icon: Icon(Icons.delete, color: TColor.primary), onPressed: () => setState(() => exercises.remove(e))),
+                      ],
+                    ),
+                  )),
+                  SizedBox(height: 10),
+                  RoundButton(
+                    title: "Add Exercise",
+                    type: RoundButtonType.bgGradient, // Fixed: Removed gradientColors
+                    onPressed: _showAddExerciseDialog,
+                  ),
+                ],
+              ).animate(effects: [FadeEffect(duration: 800.ms)]),
+            ),
+            Step(
+              title: Text("Schedule", style: TextStyle(color: TColor.textPrimary)),
+              content: Column(
+                children: [
+                  InkWell(
+                    onTap: _selectDate,
+                    child: InputDecorator(
+                      decoration: InputDecoration(labelText: 'Scheduled Date', fillColor: TColor.cardLight, filled: true, border: OutlineInputBorder()),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${exercise['category']} - ${exercise['name']}',
-                                  style: TextStyle(color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
-                                ),
-                                Text(
-                                  'Duration: ${exercise['duration']} min | Calories/Min: ${exercise['calories_per_minute']}',
-                                  style: TextStyle(color: TColor.gray, fontSize: 14),
-                                ),
-                                if (_sportType == 'Gym')
-                                  Text(
-                                    'Reps: ${exercise['reps']}, Sets: ${exercise['sets']}',
-                                    style: TextStyle(color: TColor.gray, fontSize: 14),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.edit, color: TColor.darkRose), // Darker dusty rose
-                                onPressed: () => _showAddExerciseDialog(updateExercise: exercise),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.delete, color: TColor.darkRose), // Darker dusty rose
-                                onPressed: () => _removeExercise(exercises.indexOf(exercise)),
-                              ),
-                            ],
-                          ),
+                          Text(DateFormat('dd/MM/yyyy').format(_scheduledDate), style: TextStyle(color: TColor.textPrimary)),
+                          Icon(Icons.calendar_today, color: TColor.primary),
                         ],
                       ),
-                    )).toList(),
-                  ],
-                ),
-              ).animate(
-                effects: [
-                  FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                  ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                  ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                ],
-              ),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: RoundButton(
-                      title: 'Add Exercise',
-                      type: RoundButtonType.bgGradient, // Using primary gradient (lightGray to darkRose)
-                      onPressed: _showAddExerciseDialog,
-                      fontSize: 16,
-                      elevation: 1,
-                      fontWeight: FontWeight.w700,
-                    ).animate(
-                      effects: [
-                        FadeEffect(duration: 700.ms, curve: Curves.easeInOut),
-                        ScaleEffect(duration: 700.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                        ShakeEffect(duration: 300.ms, curve: Curves.easeOut),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: 10), // Spacing between buttons
-                  Expanded(
-                    child: RoundButton(
-                      title: 'Save Schedule',
-                      type: RoundButtonType.bgGradient, // Using primary gradient (lightGray to darkRose)
-                      onPressed: _submitSchedule,
-                      fontSize: 16,
-                      elevation: 1,
-                      fontWeight: FontWeight.w700,
-                    ).animate(
-                      effects: [
-                        FadeEffect(duration: 800.ms, curve: Curves.easeInOut),
-                        ScaleEffect(duration: 800.ms, curve: Curves.easeInOut, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0)),
-                        ShakeEffect(duration: 400.ms, curve: Curves.easeOut),
-                      ],
                     ),
                   ),
                 ],
-              ),
-            ],
-          ),
+              ).animate(effects: [FadeEffect(duration: 800.ms)]),
+            ),
+          ],
         ),
       ),
+      floatingActionButton: GestureDetector(
+        onTap: _showMaxDialog,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: TColor.cardLight, borderRadius: BorderRadius.circular(12), border: Border.all(color: TColor.primary.withOpacity(0.3))),
+          child: Image.asset('assets/img/max_avatar.png', width: 50, height: 50),
+        ),
+      ).animate(effects: [FadeEffect(duration: 800.ms), ScaleEffect(duration: 800.ms, begin: Offset(0.9, 0.9), end: Offset(1.0, 1.0))]),
     );
   }
 }

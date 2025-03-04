@@ -1,10 +1,17 @@
-import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_schedule_view.dart';
+import 'package:animated_toggle_switch/animated_toggle_switch.dart';
+import 'package:fitglide_mobile_application/view/meal_planner/meal_planner_view.dart';
+import 'package:fitglide_mobile_application/view/profile/profile_view.dart';
+import 'package:fitglide_mobile_application/view/workout_tracker/workout_tracker_view.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-
-import '../../common/colo_extension.dart';
-import '../../common_widget/round_button.dart';
-import '../../common_widget/today_sleep_schedule_row.dart';
+import 'package:fitglide_mobile_application/common/colo_extension.dart';
+import 'package:fitglide_mobile_application/common_widget/round_button.dart';
+import 'package:fitglide_mobile_application/common_widget/today_sleep_schedule_row.dart';
+import 'package:fitglide_mobile_application/view/main_tab/main_screen.dart';
+import 'package:fitglide_mobile_application/view/workout_tracker/workout_hub_view.dart';
+import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_add_alarm_view.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 
 class SleepTrackerView extends StatefulWidget {
   const SleepTrackerView({super.key});
@@ -14,7 +21,15 @@ class SleepTrackerView extends StatefulWidget {
 }
 
 class _SleepTrackerViewState extends State<SleepTrackerView> {
-  List todaySleepArr = [
+  String selectedView = 'Weekly';
+  DateTime selectedDate = DateTime.now();
+  List<int> showingTooltipOnSpots = [4];
+  int selectedTab = 3;
+  TimeOfDay? newAlarmTime;
+  bool vibrateEnabled = false;
+
+  // Static data for demo
+  List<Map<String, dynamic>> sleepSchedule = [
     {
       "name": "Bedtime",
       "image": "assets/img/bed.png",
@@ -23,315 +38,367 @@ class _SleepTrackerViewState extends State<SleepTrackerView> {
     },
     {
       "name": "Alarm",
-      "image": "assets/img/alaarm.png",
+      "image": "assets/img/alarm.png",
       "time": "02/06/2023 05:10 AM",
       "duration": "in 14hours 30minutes"
     },
   ];
 
-  List findEatArr = [
-    {
-      "name": "Breakfast",
-      "image": "assets/img/m_3.png",
-      "number": "120+ Foods"
-    },
-    {"name": "Lunch", "image": "assets/img/m_4.png", "number": "130+ Foods"},
+  List<Map<String, dynamic>> badges = [
+    {"icon": "assets/img/sleep_streak.png", "title": "Sleep Streak"},
   ];
-
-  List<int> showingTooltipOnSpots = [4];
 
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
-    final tooltipsOnBar = lineBarsData1[0];
+    final displayDate = DateFormat('MMM d, yyyy').format(selectedDate);
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: TColor.white,
-        centerTitle: true,
-        elevation: 0,
-        leading: InkWell(
-          onTap: () {
-            Navigator.pop(context);
-          },
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            height: 40,
-            width: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-                color: TColor.lightGray,
-                borderRadius: BorderRadius.circular(10)),
-            child: Image.asset(
-              "assets/img/black_btn.png",
-              width: 15,
-              height: 15,
-              fit: BoxFit.contain,
-            ),
-          ),
-        ),
-        title: Text(
-          "Sleep Tracker",
-          style: TextStyle(
-              color: TColor.black, fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          InkWell(
-            onTap: () {},
-            child: Container(
-              margin: const EdgeInsets.all(8),
-              height: 40,
-              width: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                  color: TColor.lightGray,
-                  borderRadius: BorderRadius.circular(10)),
-              child: Image.asset(
-                "assets/img/more_btn.png",
-                width: 15,
-                height: 15,
-                fit: BoxFit.contain,
-              ),
-            ),
-          )
-        ],
-      ),
-      backgroundColor: TColor.white,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: TColor.backgroundLight,
+      body: SafeArea(
+        child: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                      padding: const EdgeInsets.only(left: 15),
-                      height: media.width * 0.5,
-                      width: double.maxFinite,
-                      child: LineChart(
-                        LineChartData(
-                          showingTooltipIndicators:
-                              showingTooltipOnSpots.map((index) {
-                            return ShowingTooltipIndicators([
-                              LineBarSpot(
-                                tooltipsOnBar,
-                                lineBarsData1.indexOf(tooltipsOnBar),
-                                tooltipsOnBar.spots[index],
-                              ),
-                            ]);
-                          }).toList(),
-                          lineTouchData: LineTouchData(
-                            enabled: true,
-                            handleBuiltInTouches: false,
-                            touchCallback: (FlTouchEvent event,
-                                LineTouchResponse? response) {
-                              if (response == null ||
-                                  response.lineBarSpots == null) {
-                                return;
-                              }
-                              if (event is FlTapUpEvent) {
-                                final spotIndex =
-                                    response.lineBarSpots!.first.spotIndex;
-                                showingTooltipOnSpots.clear();
-                                setState(() {
-                                  showingTooltipOnSpots.add(spotIndex);
-                                });
-                              }
-                            },
-                            mouseCursorResolver: (FlTouchEvent event,
-                                LineTouchResponse? response) {
-                              if (response == null ||
-                                  response.lineBarSpots == null) {
-                                return SystemMouseCursors.basic;
-                              }
-                              return SystemMouseCursors.click;
-                            },
-                            getTouchedSpotIndicator: (LineChartBarData barData,
-                                List<int> spotIndexes) {
-                              return spotIndexes.map((index) {
-                                return TouchedSpotIndicatorData(
-                                  const FlLine(
-                                    color: Colors.transparent,
-                                  ),
-                                  FlDotData(
-                                    show: true,
-                                    getDotPainter:
-                                        (spot, percent, barData, index) =>
-                                            FlDotCirclePainter(
-                                      radius: 3,
-                                      color: Colors.white,
-                                      strokeWidth: 1,
-                                      strokeColor: TColor.primaryColor2,
-                                    ),
-                                  ),
-                                );
-                              }).toList();
-                            },
-                            touchTooltipData: LineTouchTooltipData(
-                            getTooltipColor: (LineBarSpot touchedSpot) => TColor.secondaryColor1,                                
-                              tooltipRoundedRadius: 5,
-                              getTooltipItems:
-                                  (List<LineBarSpot> lineBarsSpot) {
-                                return lineBarsSpot.map((lineBarSpot) {
-                                  return LineTooltipItem(
-                                    "${lineBarSpot.y.toInt()} hours",
-                                    const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  );
-                                }).toList();
-                              },
-                            ),
-                          ),
-                          lineBarsData: lineBarsData1,
-                          minY: -0.01,
-                          maxY: 10.01,
-                          titlesData: FlTitlesData(
-                              show: true,
-                              leftTitles: const AxisTitles(),
-                              topTitles: const AxisTitles(),
-                              bottomTitles: AxisTitles(
-                                sideTitles: bottomTitles,
-                              ),
-                              rightTitles: AxisTitles(
-                                sideTitles: rightTitles,
-                              )),
-                          gridData: FlGridData(
-                            show: true,
-                            drawHorizontalLine: true,
-                            horizontalInterval: 2,
-                            drawVerticalLine: false,
-                            getDrawingHorizontalLine: (value) {
-                              return FlLine(
-                                color: TColor.gray.withOpacity(0.15),
-                                strokeWidth: 2,
-                              );
-                            },
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border.all(
-                              color: Colors.transparent,
-                            ),
-                          ),
-                        ),
-                      )),
-                  SizedBox(
-                    height: media.width * 0.05,
-                  ),
-                  Container(
-                    width: double.maxFinite,
-                    height: media.width * 0.4,
-                    decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: TColor.primaryG),
-                        borderRadius: BorderRadius.circular(20)),
+            Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
                     child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(
-                            height: 15,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text("Sleep Tracker", style: TextStyle(color: TColor.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)).animate(effects: [FadeEffect(duration: 800.ms)]),
+                              Container(
+                                height: 30,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(gradient: LinearGradient(colors: [TColor.primary, TColor.primaryLight]), borderRadius: BorderRadius.circular(15)),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: selectedView,
+                                    items: ["Daily", "Weekly", "Monthly"].map((name) => DropdownMenuItem(value: name, child: Text(name, style: TextStyle(color: TColor.textSecondary, fontSize: 14)))).toList(),
+                                    onChanged: (value) => setState(() => selectedView = value!),
+                                    icon: Icon(Icons.expand_more, color: TColor.textSecondary),
+                                    hint: Text("Weekly", style: TextStyle(color: TColor.textSecondary, fontSize: 12)),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 15),
-                            child: Text(
-                              "Last Night Sleep",
-                              style: TextStyle(
-                                color: TColor.white,
-                                fontSize: 14,
+                        ),
+                        // Graph
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Container(
+                            padding: const EdgeInsets.only(left: 15),
+                            height: media.width * 0.5,
+                            width: double.maxFinite,
+                            child: LineChart(
+                              LineChartData(
+                                lineTouchData: LineTouchData(
+                                  enabled: true,
+                                  handleBuiltInTouches: false,
+                                  touchCallback: (FlTouchEvent event, LineTouchResponse? response) {
+                                    if (response == null || response.lineBarSpots == null) return;
+                                    setState(() => showingTooltipOnSpots = response.lineBarSpots!.map((spot) => spot.spotIndex).toList());
+                                  },
+                                  mouseCursorResolver: (FlTouchEvent event, LineTouchResponse? response) => (response == null || response.lineBarSpots == null) ? SystemMouseCursors.basic : SystemMouseCursors.click,
+                                  getTouchedSpotIndicator: (LineChartBarData barData, List<int> spotIndexes) => spotIndexes.map((index) => TouchedSpotIndicatorData(
+                                    const FlLine(color: Colors.transparent),
+                                    FlDotData(show: true, getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 3, color: Colors.white, strokeWidth: 3, strokeColor: barData.color!)),
+                                  )).toList(),
+                                  touchTooltipData: LineTouchTooltipData(
+                                    // tooltipBgColor: TColor.cardLight.withOpacity(0.9),
+                                    tooltipRoundedRadius: 20,
+                                    getTooltipItems: (List<LineBarSpot> lineBarsSpot) => lineBarsSpot.map((spot) => LineTooltipItem(
+                                      "${spot.barIndex == 0 ? 'Sleep' : 'Deep Sleep'}: ${spot.y.toInt()}h",
+                                      TextStyle(color: spot.barIndex == 0 ? TColor.primary : TColor.accent2, fontSize: 10, fontWeight: FontWeight.bold),
+                                    )).toList(),
+                                  ),
+                                ),
+                                lineBarsData: [lineChartBarDataSleep, lineChartBarDataDeepSleep],
+                                minY: 0,
+                                maxY: 10,
+                                titlesData: FlTitlesData(
+                                  leftTitles: const AxisTitles(),
+                                  topTitles: const AxisTitles(),
+                                  bottomTitles: AxisTitles(sideTitles: bottomTitles),
+                                  rightTitles: AxisTitles(sideTitles: rightTitles),
+                                ),
+                                gridData: FlGridData(
+                                  show: true,
+                                  drawHorizontalLine: true,
+                                  horizontalInterval: 2,
+                                  drawVerticalLine: false,
+                                  getDrawingHorizontalLine: (value) => FlLine(color: TColor.textSecondary.withOpacity(0.15), strokeWidth: 2),
+                                ),
+                                borderData: FlBorderData(show: true, border: Border.all(color: Colors.transparent)),
+                              ),
+                            ),
+                          ).animate(effects: [FadeEffect(duration: 1000.ms)]),
+                        ),
+                        // Tracking Boxes
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildTrackingBox("Today", "8h 20m", "8h 30m"),
+                              _buildTrackingBox("Weekly Avg", "7h 50m", "8h 30m"),
+                              _buildTrackingBox("Monthly Avg", "7h 40m", "8h 30m"),
+                            ],
+                          ),
+                        ),
+                        // Sleep Debt
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Card(
+                            color: TColor.cardLight,
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(15),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Sleep Debt", style: TextStyle(color: TColor.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+                                      SizedBox(height: 5),
+                                      Text("2h 30m", style: TextStyle(color: TColor.accent1, fontSize: 14)),
+                                    ],
+                                  ),
+                                  Icon(Icons.warning, color: TColor.accent1, size: 24),
+                                ],
                               ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 15),
-                            child: Text(
-                              "8h 20m",
-                              style: TextStyle(
-                                  color: TColor.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                          const Spacer(),
-                          Image.asset(
-                            "assets/img/SleepGraph.png",
-                            width: double.maxFinite,
-                          )
-                        ]),
-                  ),
-                  SizedBox(
-                    height: media.width * 0.05,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 15, horizontal: 15),
-                    decoration: BoxDecoration(
-                      color: TColor.primaryColor2.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Daily Sleep Schedule",
-                          style: TextStyle(
-                              color: TColor.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700),
                         ),
-                        SizedBox(
-                          width: 75,
-                          height: 30,
-                          child: RoundButton(
-                            title: "Check",
-                            type: RoundButtonType.bgGradient,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const SleepScheduleView(),
+                        // Schedule Section
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text("Sleep Schedule", style: TextStyle(color: TColor.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                                  GestureDetector(
+                                    onTap: () => _selectDate(context),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: TColor.primary),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.calendar_today, color: TColor.primary, size: 16),
+                                          const SizedBox(width: 5),
+                                          Text(displayDate, style: TextStyle(color: TColor.textPrimary, fontSize: 14)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ListView.builder(
+                                padding: EdgeInsets.zero,
+                                physics: const NeverScrollableScrollPhysics(),
+                                shrinkWrap: true,
+                                itemCount: sleepSchedule.length,
+                                itemBuilder: (context, index) {
+                                  var sObj = sleepSchedule[index];
+                                  return TodaySleepScheduleRow(sObj: sObj);
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              // Inline Add Alarm
+                              Card(
+                                color: TColor.cardLight,
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Add Alarm", style: TextStyle(color: TColor.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          GestureDetector(
+                                            onTap: () async {
+                                              final TimeOfDay? picked = await showTimePicker(
+                                                context: context,
+                                                initialTime: TimeOfDay.now(),
+                                              );
+                                              if (picked != null) setState(() => newAlarmTime = picked);
+                                            },
+                                            child: Text(
+                                              newAlarmTime != null ? newAlarmTime!.format(context) : "Set Time",
+                                              style: TextStyle(color: newAlarmTime != null ? TColor.textPrimary : TColor.textSecondary, fontSize: 14),
+                                            ),
+                                          ),
+                                          CustomAnimatedToggleSwitch<bool>(
+                                            current: vibrateEnabled,
+                                            values: const [false, true],
+                                            indicatorSize: const Size.square(20.0),
+                                            animationDuration: const Duration(milliseconds: 200),
+                                            animationCurve: Curves.linear,
+                                            onChanged: (b) => setState(() => vibrateEnabled = b),
+                                            iconBuilder: (context, local, global) => const SizedBox(),
+                                            wrapperBuilder: (context, global, child) => Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                Positioned(
+                                                  left: 5.0,
+                                                  right: 5.0,
+                                                  height: 20.0,
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      gradient: vibrateEnabled ? LinearGradient(colors: TColor.secondaryG) : LinearGradient(colors: [Colors.grey, Colors.grey]),
+                                                      borderRadius: const BorderRadius.all(Radius.circular(50.0)),
+                                                    ),
+                                                  ),
+                                                ),
+                                                child,
+                                              ],
+                                            ),
+                                            foregroundIndicatorBuilder: (context, global) => SizedBox.fromSize(
+                                              size: const Size(10, 10),
+                                              child: DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  color: TColor.white,
+                                                  borderRadius: const BorderRadius.all(Radius.circular(50.0)),
+                                                  boxShadow: const [BoxShadow(color: Colors.black38, spreadRadius: 0.05, blurRadius: 1.1, offset: Offset(0.0, 0.8))],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.maxFinite,
+                                        height: 40,
+                                        child: RoundButton(
+                                          title: "Add",
+                                          type: RoundButtonType.bgGradient,
+                                          fontSize: 14,
+                                          onPressed: () {
+                                            if (newAlarmTime != null) {
+                                              final now = DateTime.now();
+                                              final alarmDateTime = DateTime(now.year, now.month, now.day, newAlarmTime!.hour, newAlarmTime!.minute);
+                                              final duration = alarmDateTime.difference(now);
+                                              setState(() {
+                                                sleepSchedule.add({
+                                                  "name": "Alarm",
+                                                  "image": "assets/img/alarm.png",
+                                                  "time": DateFormat('dd/MM/yyyy hh:mm a').format(alarmDateTime),
+                                                  "duration": "in ${_formatDuration(duration)}",
+                                                });
+                                                newAlarmTime = null; // Reset after adding
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              );
-                            },
+                              ),
+                            ],
                           ),
-                        )
+                        ),
+                        // Badges
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Achievements", style: TextStyle(color: TColor.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 80,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: badges.length,
+                                  itemBuilder: (context, index) {
+                                    final badge = badges[index];
+                                    return Container(
+                                      margin: const EdgeInsets.only(right: 10),
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(color: TColor.cardLight, borderRadius: BorderRadius.circular(10)),
+                                      child: Row(
+                                        children: [
+                                          Image.asset(badge['icon'] ?? 'assets/img/salad.png', width: 40, height: 40, errorBuilder: (context, error, stackTrace) => Icon(Icons.star, color: TColor.primary, size: 40)),
+                                          const SizedBox(width: 10),
+                                          Text(badge['title'], style: TextStyle(color: TColor.textPrimary, fontSize: 14)),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 80), // Space for FAB and Max
                       ],
                     ),
                   ),
-                  SizedBox(
-                    height: media.width * 0.05,
-                  ),
-                  Text(
-                    "Today Schedule",
-                    style: TextStyle(
-                        color: TColor.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700),
-                  ),
-                  SizedBox(
-                    height: media.width * 0.03,
-                  ),
-                  ListView.builder(
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: todaySleepArr.length,
-                      itemBuilder: (context, index) {
-                        var sObj = todaySleepArr[index] as Map? ?? {};
-                        return TodaySleepScheduleRow(
-                          sObj: sObj,
-                        );
-                      }),
-                ],
-              ),
+                ),
+                // Bottom Navigation
+                BottomNavigationBar(
+                  currentIndex: selectedTab,
+                  onTap: _onTabTapped,
+                  items: [
+                    BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home, color: TColor.primary), label: "Home"),
+                    BottomNavigationBarItem(icon: Icon(Icons.fitness_center_outlined), activeIcon: Icon(Icons.fitness_center, color: TColor.primary), label: "Workout"),
+                    BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), activeIcon: Icon(Icons.restaurant, color: TColor.primary), label: "Meal"),
+                    BottomNavigationBarItem(icon: Icon(Icons.bedtime), activeIcon: Icon(Icons.nightlight_round, color: TColor.primary), label: "Sleep"),
+                    BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person, color: TColor.primary), label: "Profile"),
+                  ],
+                  selectedItemColor: TColor.primary,
+                  unselectedItemColor: TColor.textSecondary,
+                  backgroundColor: TColor.backgroundLight,
+                  elevation: 0,
+                  type: BottomNavigationBarType.fixed,
+                  selectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  unselectedLabelStyle: const TextStyle(fontSize: 14),
+                ).animate(effects: [FadeEffect(duration: 800.ms)]),
+              ],
             ),
-            SizedBox(
-              height: media.width * 0.05,
+            // FAB and Max
+            Positioned(
+              bottom: 70,
+              right: 20,
+              child: Row(
+                children: [
+                  FloatingActionButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SleepAddAlarmView(date: selectedDate))).then((_) => setState(() {})),
+                    backgroundColor: TColor.primary,
+                    child: Icon(Icons.add, color: TColor.textPrimaryDark),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: _showMaxDialog,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: TColor.cardLight, borderRadius: BorderRadius.circular(12), border: Border.all(color: TColor.primary.withOpacity(0.3))),
+                      child: Image.asset('assets/img/max_avatar.png', width: 50, height: 50, errorBuilder: (context, error, stackTrace) => Icon(Icons.person, color: TColor.primary, size: 50)),
+                    ),
+                  ),
+                ],
+              ).animate(effects: [FadeEffect(duration: 800.ms), ScaleEffect(duration: 800.ms, begin: const Offset(0.9, 0.9), end: const Offset(1.0, 1.0))]),
             ),
           ],
         ),
@@ -339,124 +406,120 @@ class _SleepTrackerViewState extends State<SleepTrackerView> {
     );
   }
 
-  List<LineChartBarData> get lineBarsData1 => [
-        lineChartBarData1_1,
-      ];
-
-  LineChartBarData get lineChartBarData1_1 => LineChartBarData(
-        isCurved: true,
-        
-        gradient: LinearGradient(colors: [
-          TColor.primaryColor2,
-          TColor.primaryColor1,
-        ]),
-        barWidth: 2,
-        isStrokeCapRound: true,
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: true,
-          gradient: LinearGradient(colors: [
-            TColor.primaryColor2,
-            TColor.white,
-          ], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+  Widget _buildTrackingBox(String title, String hours, String goal) {
+    return Card(
+      color: TColor.cardLight,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            Text(title, style: TextStyle(color: TColor.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 5),
+            Text(hours, style: TextStyle(color: TColor.textPrimary, fontSize: 14)),
+            Text("Goal: $goal", style: TextStyle(color: TColor.textSecondary, fontSize: 10)),
+          ],
         ),
-        spots: const [
-          FlSpot(1, 3),
-          FlSpot(2, 5),
-          FlSpot(3, 4),
-          FlSpot(4, 7),
-          FlSpot(5, 4),
-          FlSpot(6, 8),
-          FlSpot(7, 5),
-        ],
-      );
-
-SideTitles get rightTitles => SideTitles(
-      getTitlesWidget: rightTitleWidgets,
-      showTitles: true,
-      interval: 2,
-      reservedSize: 40,
+      ),
     );
-
-  Widget rightTitleWidgets(double value, TitleMeta meta) {
-    String text;
-    switch (value.toInt()) {
-      case 0:
-        text = '0h';
-        break;
-      case 2:
-        text = '2h';
-        break;
-      case 4:
-        text = '4h';
-        break;
-      case 6:
-        text = '6h';
-        break;
-      case 8:
-        text = '8h';
-        break;
-      case 10:
-        text = '10h';
-        break;
-      default:
-        return Container();
-    }
-
-    return Text(text,
-        style: TextStyle(
-          color: TColor.gray,
-          fontSize: 12,
-        ),
-        textAlign: TextAlign.center);
   }
 
-SideTitles get bottomTitles => SideTitles(
-      showTitles: true,
-      reservedSize: 32,
-      interval: 1,
-      getTitlesWidget: bottomTitleWidgets,
-    );
-
-Widget bottomTitleWidgets(double value, TitleMeta meta) {
-  var style = TextStyle(
-    color: TColor.gray,
-    fontSize: 12,
+  LineChartBarData get lineChartBarDataSleep => LineChartBarData(
+    isCurved: true,
+    color: TColor.primary,
+    barWidth: 4,
+    isStrokeCapRound: true,
+    dotData: const FlDotData(show: false),
+    belowBarData: BarAreaData(
+      show: true,
+      gradient: LinearGradient(colors: [TColor.primary.withOpacity(0.3), Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+    ),
+    spots: const [
+      FlSpot(1, 7), FlSpot(2, 8), FlSpot(3, 6), FlSpot(4, 8), FlSpot(5, 7), FlSpot(6, 9), FlSpot(7, 7),
+    ],
   );
 
-    Widget text;
-    switch (value.toInt()) {
-      case 1:
-        text = Text('Sun', style: style);
-        break;
-      case 2:
-        text = Text('Mon', style: style);
-        break;
-      case 3:
-        text = Text('Tue', style: style);
-        break;
-      case 4:
-        text = Text('Wed', style: style);
-        break;
-      case 5:
-        text = Text('Thu', style: style);
-        break;
-      case 6:
-        text = Text('Fri', style: style);
-        break;
-      case 7:
-        text = Text('Sat', style: style);
-        break;
-    default:
-      text = const Text('');
-      break;
+  LineChartBarData get lineChartBarDataDeepSleep => LineChartBarData(
+    isCurved: true,
+    color: TColor.accent2,
+    barWidth: 2,
+    isStrokeCapRound: true,
+    dotData: const FlDotData(show: false),
+    belowBarData: BarAreaData(
+      show: true,
+      gradient: LinearGradient(colors: [TColor.accent2.withOpacity(0.3), Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+    ),
+    spots: const [
+      FlSpot(1, 2), FlSpot(2, 3), FlSpot(3, 1.5), FlSpot(4, 2.5), FlSpot(5, 2), FlSpot(6, 3.5), FlSpot(7, 2),
+    ],
+  );
+
+  SideTitles get rightTitles => SideTitles(
+    getTitlesWidget: (value, meta) => Text('${value.toInt()}h', style: TextStyle(color: TColor.textSecondary, fontSize: 12)),
+    showTitles: true,
+    interval: 2,
+    reservedSize: 40,
+  );
+
+  SideTitles get bottomTitles => SideTitles(
+    showTitles: true,
+    reservedSize: 32,
+    interval: 1,
+    getTitlesWidget: (value, meta) {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      if (value.toInt() >= 1 && value.toInt() <= 7) {
+        return Text(days[value.toInt() - 1], style: TextStyle(color: TColor.textSecondary, fontSize: 12));
+      }
+      return const Text('');
+    },
+  );
+
+  void _onTabTapped(int index) {
+    setState(() => selectedTab = index);
+    switch (index) {
+      case 0: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainScreen())); break;
+      case 1: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const WorkoutHubView())); break;
+      case 2: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MealPlannerView())); break;
+      case 3: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SleepTrackerView())); break;
+      case 4: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ProfileView())); break;
+    }
   }
 
-    return SideTitleWidget(
-      space: 10,
-      meta: meta,
-      child: text,
+  void _showMaxDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TColor.cardLight,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: TColor.primary)),
+        content: Row(
+          children: [
+            Image.asset('assets/img/max_avatar.png', width: 50, height: 50, errorBuilder: (context, error, stackTrace) => Icon(Icons.person, color: TColor.primary, size: 50)),
+            SizedBox(width: 10),
+            Expanded(child: Text("Max says: Aim for 8 hours tonight!", style: TextStyle(color: TColor.textPrimary))),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text("Close", style: TextStyle(color: TColor.primary)))],
+      ),
     );
   }
-  
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != selectedDate) {
+      setState(() => selectedDate = picked);
+      // Placeholder for fetching schedule data
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    return "$hours h $minutes min";
+  }
 }

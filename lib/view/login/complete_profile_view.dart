@@ -62,7 +62,7 @@ Future<void> updateHealthVitals() async {
   try {
     final response = await ApiService.post('health-vitals/', data);
 
-    if (response == null || response is Exception) {
+    if (response is Exception) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $response')),
       );
