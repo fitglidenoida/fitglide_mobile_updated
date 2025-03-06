@@ -5,7 +5,6 @@ import 'package:fitglide_mobile_application/view/profile/profile_view.dart';
 import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_tracker_view.dart';
 import 'package:fitglide_mobile_application/view/workout_tracker/add_schedule_view.dart';
 import 'package:fitglide_mobile_application/view/workout_tracker/workout_detail_view.dart';
-import 'package:fitglide_mobile_application/view/workout_tracker/workout_tracker_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';

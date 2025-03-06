@@ -1,5 +1,3 @@
-import 'package:fitglide_mobile_application/common_widget/icon_title_next_row.dart';
-import 'package:fitglide_mobile_application/common_widget/round_button.dart';
 import 'package:fitglide_mobile_application/services/api_service.dart';
 import 'package:fitglide_mobile_application/view/main_tab/main_screen.dart';
 import 'package:fitglide_mobile_application/view/meal_planner/meal_planner_view.dart';

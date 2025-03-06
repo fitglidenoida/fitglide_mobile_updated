@@ -8,7 +8,6 @@ class TColor {
   static Color get secondaryColor2 => Color(0xFF2C2C2C); // Dark background 
  
 
-
   static List<Color> get primaryG => [lightGray, darkRose]; 
   static List<Color> get secondaryG => [lightIndigo, darkSlate]; 
   static Color get red => Colors.red;
@@ -26,6 +25,7 @@ class TColor {
   static Color getSecondaryTextColor(bool isDarkMode) => isDarkMode ? gray.withOpacity(0.7) : gray; // Use white70 for dark mode if needed
   static Color getPrimaryAccentColor(bool isDarkMode) => darkRose; // Consistent across both modes
   static Color getSecondaryAccentColor(bool isDarkMode) => isDarkMode ? darkIndigo : lightIndigo;
+
 
   static const Color white = Color(0xFFFFFFFF); // White background (FitOn’s light mode or neutral)
   static const Color lightGray = Color(0xFFF5F5F5); // Light gray for cards (soft neutral, inspired by FitOn’s minimalism)

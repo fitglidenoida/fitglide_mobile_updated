@@ -19,7 +19,7 @@ class _WorkoutScheduleViewState extends State<WorkoutScheduleView> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   List<Map<String, dynamic>> workouts = [];
-  bool _isPremium = false; // Assume user status check here
+  final bool _isPremium = false; // Assume user status check here
 
   @override
   void initState() {

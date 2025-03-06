@@ -7,31 +7,30 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String baseUrl = 'https://admin.fitglide.in/api';
 
-static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
-  final url = Uri.parse('$baseUrl/$endpoint');
-  final headers = endpoint == 'auth/local' ? {'Content-Type': 'application/json'} : await _getHeaders();
+  static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
+    final url = Uri.parse('$baseUrl/$endpoint');
+    final headers = endpoint == 'auth/local' ? {'Content-Type': 'application/json'} : await _getHeaders();
 
-  try {
-    final response = await http.post(
-      url,
-      headers: headers,
-      body: jsonEncode(data),
-    );
+    try {
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(data),
+      );
 
-    debugPrint('Response: ${response.statusCode} - ${response.body}');
+      debugPrint('Response: ${response.statusCode} - ${response.body}');
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
-      final error = jsonDecode(response.body);
-      throw Exception('API Error: ${response.statusCode} - $error');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception('API Error: ${response.statusCode} - $error');
+      }
+    } catch (e) {
+      debugPrint('Error during API call: $e');
+      throw Exception('Error: $e');
     }
-  } catch (e) {
-    debugPrint('Error during API call: $e');
-    throw Exception('Error: $e');
   }
-}
-
 
   static Future<Map<String, dynamic>> get(String endpoint) async {
     final url = Uri.parse('$baseUrl/$endpoint');
@@ -41,39 +40,37 @@ static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> d
     return _handleResponse(response);
   }
 
-static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data, {bool raw = false}) async {
+  static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data, {bool raw = false}) async {
     final url = Uri.parse('$baseUrl/$endpoint');
     final headers = await _getHeaders();
-  debugPrint('PUT request to: $url');
-  debugPrint('Body: ${jsonEncode(raw ? data : {'data': data})}');
-  final response = await http.put(
-    url,
-    headers: headers,
-    body: jsonEncode(raw ? data : {'data': data}),
-  );
-  debugPrint('PUT response: ${response.statusCode} - ${response.body}');
+    debugPrint('PUT request to: $url');
+    debugPrint('Body: ${jsonEncode(raw ? data : {'data': data})}');
+    final response = await http.put(
+      url,
+      headers: headers,
+      body: jsonEncode(raw ? data : {'data': data}),
+    );
+    debugPrint('PUT response: ${response.statusCode} - ${response.body}');
     return _handleResponse(response);
   }
 
   static Future<Map<String, dynamic>> _handleResponse(http.Response response) async {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       try {
-        // Directly decode the response body and return it as a Future
-        return jsonDecode(response.body); // This will return a Map<String, dynamic>
+        return jsonDecode(response.body);
       } catch (e) {
-        // Handle JSON decoding errors
         debugPrint('JSON decoding error: $e');
-        debugPrint('Response body: ${response.body}'); // Print the raw response body for debugging
+        debugPrint('Response body: ${response.body}');
         throw Exception('Failed to decode JSON: $e');
       }
     } else {
-      debugPrint('API Error: ${response.statusCode} - ${response.body}'); // Log the error response
+      debugPrint('API Error: ${response.statusCode} - ${response.body}');
       throw Exception('API Error: ${response.statusCode} - ${response.body}');
     }
   }
 
   static Future<Map<String, String>> _getHeaders() async {
-    final token = await StorageService.getToken(); // Replace with your token retrieval logic
+    final token = await StorageService.getToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -84,17 +81,14 @@ static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> da
     return ApiService.post('auth/local/register', data);
   }
 
-  updateHealthVital(int i, Map<String, String?> data) {}
-
-  static Future<List<Map<String, dynamic>>> getSleepLogs(String username) async {
-    final response = await get('sleeplogs?populate=*&filters[username][username][\$eq]=$username');
-    
-    if (response.containsKey('data') && response['data'] is List) {
-      return List<Map<String, dynamic>>.from(response['data']);
-    } else {
-      throw Exception('Unexpected format for sleep logs response');
-    }
+static Future<List<Map<String, dynamic>>> getSleepLogs(String username) async {
+  final response = await get('sleeplogs?populate=*&filters[username][username][\$eq]=$username');
+  if (response.containsKey('data') && response['data'] is List) {
+    return List<Map<String, dynamic>>.from(response['data']);
+  } else {
+    throw Exception('Unexpected format for sleep logs response');
   }
+}
 
   static Future<Map<String, dynamic>> addSleepLog(Map<String, dynamic> data) async {
     return post('sleeplogs', {'data': data});
@@ -104,11 +98,11 @@ static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> da
     return put('sleeplogs/$logId', {'data': data});
   }
 
-static Future<Map<String, dynamic>> fetchDietComponents(String dietPreference) async {
+  static Future<Map<String, dynamic>> fetchDietComponents(String dietPreference) async {
     return get('diet-components?populate=*&filters[food_type][\$eq]=$dietPreference');
   }
 
-static Future<Map<String, dynamic>> getDietComponents() async {
+  static Future<Map<String, dynamic>> getDietComponents() async {
     return get('diet-components?populate=*');
   }
 
@@ -116,11 +110,10 @@ static Future<Map<String, dynamic>> getDietComponents() async {
     return post('diet-components', {'data': data});
   }
 
-static Future<Map<String, dynamic>> updateDietComponent(String documentId, Map<String, dynamic> data) async {
-  return put('diet-components/$documentId', data); // Default wraps in {"data": ...}
-}
+  static Future<Map<String, dynamic>> updateDietComponent(String documentId, Map<String, dynamic> data) async {
+    return put('diet-components/$documentId', data);
+  }
 
-  // Meals Methods
   static Future<Map<String, dynamic>> fetchMeals() async {
     return get('meals?populate=*');
   }
@@ -133,7 +126,6 @@ static Future<Map<String, dynamic>> updateDietComponent(String documentId, Map<S
     return put('meals/$documentId', {'data': data});
   }
 
-  // Diet Plans Methods
   static Future<Map<String, dynamic>> fetchDietPlans(String username) async {
     return get('diet-plans?populate=*&filters[users_permissions_user][username][\$eq]=$username');
   }
@@ -146,12 +138,11 @@ static Future<Map<String, dynamic>> updateDietComponent(String documentId, Map<S
     return put('diet-plans/$documentId', {'data': data});
   }
 
-
   static Future<Map<String, dynamic>> fetchDietTemplates(String dietPreference) async {
     return get('diet-templates?populate=*&filters[diet_preference][\$eq]=$dietPreference');
   }
 
-static Future<List<Map<String, dynamic>>> fetchAllExercises() async {
+  static Future<List<Map<String, dynamic>>> fetchAllExercises() async {
     try {
       List<Map<String, dynamic>> allExercises = [];
       int page = 1;
@@ -179,27 +170,38 @@ static Future<List<Map<String, dynamic>>> fetchAllExercises() async {
     }
   }
 
-  // Fetch workout plans for a specific user
-static Future<Map<String, dynamic>> fetchWorkoutPlans(String username) async {
+  static Future<Map<String, dynamic>> fetchWorkoutPlans(String username) async {
     return get('workout-plans?populate=*&filters[username][username][\$eq]=$username');
   }
 
-  // Add a new workout plan
-static Future<Map<String, dynamic>> addWorkoutPlan(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> addWorkoutPlan(Map<String, dynamic> data) async {
     return post('workout-plans', data);
   }
 
-// In ApiService.dart, update the updateWorkoutPlan method
-static Future<Map<String, dynamic>> updateWorkoutPlan(String documentId, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateWorkoutPlan(String documentId, Map<String, dynamic> data) async {
     final payload = {
       'data': {
-        'Completed': 'TRUE', // Match Strapi's field name and string value
+        'Completed': 'TRUE',
       },
     };
-    return put('workout-plans/$documentId', payload); // Use documentId instead of numeric id
+    return put('workout-plans/$documentId', payload);
   }
 
-static Future<bool> validateToken(String token) async {
+  // *** NEW API ENDPOINTS FOR STRAVA-INPUTS ***
+  static Future<Map<String, dynamic>> fetchStravaInputs(String username) async {
+    return get('strava-inputs?populate=*&filters[username][username][\$eq]=$username');
+  }
+
+  static Future<Map<String, dynamic>> addStravaInput(Map<String, dynamic> data) async {
+    return post('strava-inputs', {'data': data});
+  }
+
+  static Future<Map<String, dynamic>> updateStravaInput(String documentId, Map<String, dynamic> data) async {
+    return put('strava-inputs/$documentId', {'data': data});
+  }
+  // *** END NEW API ENDPOINTS ***
+
+  static Future<bool> validateToken(String token) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/users/me'),
@@ -214,20 +216,34 @@ static Future<bool> validateToken(String token) async {
       return false;
     }
   }
+  
+  static Future<Map<String, dynamic>> getActivites(String username) async {
+    return get('strava-inputs?populate=*&filters[username][username][\$eq]=$username');
   }
+
+  static Future<Map<String, dynamic>> addActivities(Map<String, dynamic> data) async {
+    return post('strava-inputs', {'data': data});
+  }
+
+  static Future<Map<String, dynamic>> updateActivities(String documentId, Map<String, dynamic> data) async {
+    return put('strava-inputs/$documentId', {'data': data});
+  }
+
+  // Fetch activity metrics (e.g., steps, calories burned) from Strava Inputs
+  static Future<Map<String, dynamic>> fetchActivityMetrics(String username) async {
+    return get('strava-inputs?populate=*&filters[username][username][\$eq]=$username&sort[0]=createdAt:desc');
+  }
+}
+
 
 
 class AuthService {
-
- 
-
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await ApiService.post('auth/local', {
       'identifier': email,
       'password': password,
     });
 
-    // Save the JWT token in shared preferences
     if (response.containsKey('jwt')) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('jwt', response['jwt']);
@@ -253,17 +269,13 @@ class AuthService {
     }
   }
 
-    void updateHealthVital(int i, Map<String, String?> data) {}
-
-    
-
+  void updateHealthVital(int i, Map<String, String?> data) {}
 }
-
 
 class DataService {
-Future<Map<String, dynamic>> fetchUserDetails() async {
-  return ApiService.get('users/me?populate=*');
-}
+  Future<Map<String, dynamic>> fetchUserDetails() async {
+    return ApiService.get('users/me?populate=*');
+  }
 
   Future<Map<String, dynamic>> updateUserDetails(Map<String, dynamic> data) async {
     return ApiService.put('users/me', data);
@@ -285,19 +297,18 @@ Future<Map<String, dynamic>> fetchUserDetails() async {
     return ApiService.get('create-order?populate=*');
   }
 
-Future<List<dynamic>> fetchHealthVitals(String username) async {
-  String encodedUsername = Uri.encodeQueryComponent(username);
-  final response = await ApiService.get(
-    // Here we use double quotes and escape $ with a backslash
-    'health-vitals?populate=*&filters[username][username][\$eq]=$encodedUsername',
-  );
+  Future<List<dynamic>> fetchHealthVitals(String username) async {
+    String encodedUsername = Uri.encodeQueryComponent(username);
+    final response = await ApiService.get(
+      'health-vitals?populate=*&filters[username][username][\$eq]=$encodedUsername',
+    );
 
-  if (response.containsKey('data') && response['data'] is List) {
-    return response['data'] as List<dynamic>;
-  } else {
-    throw Exception('Unexpected API response format: $response');
+    if (response.containsKey('data') && response['data'] is List) {
+      return response['data'] as List<dynamic>;
+    } else {
+      throw Exception('Unexpected API response format: $response');
+    }
   }
-}
 
   Future<Map<String, dynamic>> fetchWeightLogs(String username) async {
     return ApiService.get('weightlogs?filters[username][username][\$eq]=$username&sort=logdate:DESC');
@@ -319,7 +330,6 @@ Future<List<dynamic>> fetchHealthVitals(String username) async {
     await ApiService.put('plans/$planId', data);
   }
 
-  // New Endpoints
   Future<Map<String, dynamic>> fetchStravaInputs(String athleteId) async {
     return ApiService.get('strava-inputs?filters[activity_id][\$eq]=$athleteId');
   }
@@ -337,11 +347,10 @@ Future<List<dynamic>> fetchHealthVitals(String username) async {
   }
 
   Future<void> updateHealthVital(int documentId, Map<String, dynamic> data) async {
-    // PUT request to update the health vitals in the database
     await ApiService.put('health-vitals/$documentId', data);
   }
 
-    Future<void> updateHealthVitals( documentId, Map<String, dynamic> data) async {
+  Future<void> updateHealthVitals(documentId, Map<String, dynamic> data) async {
     try {
       await ApiService.put('health-vitals/$documentId', data);
       debugPrint('Health vitals updated successfully for ID: $documentId');
@@ -360,45 +369,35 @@ Future<List<dynamic>> fetchHealthVitals(String username) async {
       throw Exception('Failed to add health vitals');
     }
   }
-   
-Future<Map<String, dynamic>> getSleepLogs(String username) async {
-  return ApiService.get('sleeplogs?populate=*&filters[username][username][\$eq]=$username');
-}
+
+  Future<Map<String, dynamic>> getSleepLogs(String username) async {
+    return ApiService.get('sleeplogs?populate=*&filters[username][username][\$eq]=$username');
+  }
 
   Future<Map<String, dynamic>> postSleepLogs(Map<String, dynamic> data) async {
     return ApiService.post('sleeplogs', data);
   }
 
-Future<List<dynamic>> fetchUserSleepLogs(String username) async {
-  final response = await ApiService.get('sleeplogs?populate=*&filters[username][username][\$eq]=$username');
-  
-  if (response.containsKey('data') && response['data'] is List) {
-    List<dynamic> logs = response['data'];
-
-    // Ensure only entries linked to the correct username are returned
-    List<dynamic> filteredLogs = logs.where((log) {
-      return log['username'] != null && log['username']['username'] == username;
-    }).toList();
-
-    return filteredLogs;
-  } else {
-    throw Exception('Failed to load sleep logs: Unexpected response format');
+  Future<List<dynamic>> fetchUserSleepLogs(String username) async {
+    final response = await ApiService.get('sleeplogs?populate=*&filters[username][username][\$eq]=$username');
+    if (response.containsKey('data') && response['data'] is List) {
+      List<dynamic> logs = response['data'];
+      List<dynamic> filteredLogs = logs.where((log) {
+        return log['username'] != null && log['username']['username'] == username;
+      }).toList();
+      return filteredLogs;
+    } else {
+      throw Exception('Failed to load sleep logs: Unexpected response format');
+    }
   }
-}
 
-
-    Future<void> updateSleepLogForUser(String logId, Map<String, dynamic> data) async {
+  Future<void> updateSleepLogForUser(String logId, Map<String, dynamic> data) async {
     try {
       await ApiService.updateSleepLog(logId, data);
-      // Any additional logic here, like updating local state, logging, etc.
       debugPrint('Sleep log updated successfully for ID: $logId');
     } catch (e) {
       debugPrint('Error updating sleep log: $e');
-      // Handle error in a way that's meaningful for your app's flow
       throw Exception('Failed to update sleep log');
     }
   }
 }
-
-
-

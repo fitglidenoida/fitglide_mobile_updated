@@ -1,19 +1,16 @@
 import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:fitglide_mobile_application/view/profile/profile_view.dart';
 import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_tracker_view.dart';
-import 'package:fitglide_mobile_application/view/workout_tracker/workout_tracker_view.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:fitglide_mobile_application/services/bmr_tdee_service.dart';
 import 'package:fitglide_mobile_application/services/api_service.dart';
 import 'package:fitglide_mobile_application/services/user_service.dart';
 import 'package:fitglide_mobile_application/view/main_tab/main_screen.dart';
-import 'package:fitglide_mobile_application/view/sleep_tracker/sleep_schedule_view.dart';
 import 'package:fitglide_mobile_application/view/workout_tracker/workout_hub_view.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../../common/colo_extension.dart';
-import '../../common_widget/round_button.dart';
 import 'meal_tdee_view.dart';
 import 'food_info_details_view.dart';
 

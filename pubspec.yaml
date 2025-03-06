@@ -53,7 +53,7 @@ dependencies:
   table_calendar: ^3.0.8
   scrollable_positioned_list: ^0.3.8
   health: ^12.0.1
-  permission_handler: ^11.3.1
+  permission_handler: ^11.4.0
   workmanager: ^0.5.2
   android_alarm_manager_plus: ^4.0.6
   flutter_local_notifications: ^18.0.1

@@ -23,7 +23,8 @@ class UserService {
       heightCm: (healthVitals.isNotEmpty ? healthVitals[0]['height'] as num? : null)?.toDouble(),
       weightKg: (healthVitals.isNotEmpty ? healthVitals[0]['WeightInKilograms'] as num? : null)?.toDouble(),
       dateOfBirth: healthVitals.isNotEmpty ? healthVitals[0]['date_of_birth'] as String? : null,
-      gender: healthVitals.isNotEmpty ? healthVitals[0]['gender'] as String? : null, // Added gender
+      gender: healthVitals.isNotEmpty ? healthVitals[0]['gender'] as String? : null,
+      weightLossGoal: (healthVitals.isNotEmpty ? healthVitals[0]['weight_loss_goal'] as num? : null)?.toDouble(), // Fetch directly
     );
   }
 
@@ -61,7 +62,8 @@ class UserData {
   final double? heightCm;
   final double? weightKg;
   final String? dateOfBirth;
-  final String? gender; // Added gender field
+  final String? gender;
+  final double? weightLossGoal; // Added weightLossGoal field
 
   UserData({
     required this.firstName,
@@ -69,7 +71,8 @@ class UserData {
     this.heightCm,
     this.weightKg,
     this.dateOfBirth,
-    this.gender, // Added to constructor
+    this.gender,
+    this.weightLossGoal, // Added to constructor
   });
 
   int get age => dateOfBirth != null ? calculateAge(dateOfBirth!) : 0;
